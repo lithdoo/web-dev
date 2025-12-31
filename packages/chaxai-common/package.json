@@ -1,0 +1,39 @@
+{
+  "name": "chaxai-common",
+  "version": "1.0.0",
+  "description": "Common utilities library for web and nodejs",
+  "type": "module",
+  "main": "./dist/chaxai-common.cjs",
+  "module": "./dist/chaxai-common.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/chaxai-common.js",
+      "require": "./dist/chaxai-common.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "common",
+    "utilities",
+    "typescript",
+    "vite"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vite-plugin-dts": "^3.7.0"
+  }
+}
