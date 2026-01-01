@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "service",
@@ -17,12 +19,19 @@
   "license": "MIT",
   "devDependencies": {
     "@types/koa": "^2.13.0",
+    "@types/koa__router": "^12.0.0",
     "@types/node": "^20.10.0",
+    "koa-bodyparser": "^4.4.1",
     "typescript": "^5.3.0",
-    "vite": "^5.0.0"
+    "vite": "^5.0.0",
+    "vite-tsconfig-paths": "^6.0.3",
+    "vitest": "^1.0.0"
   },
   "dependencies": {
+    "@langchain/core": "^0.3.0",
+    "@langchain/deepseek": "^0.0.1",
     "koa": "^2.15.0",
+    "langchain": "^0.3.0",
     "uuid": "^11.0.0"
   }
 }

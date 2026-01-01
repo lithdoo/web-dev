@@ -1,4 +1,4 @@
-import { IChaxService, IChaxConversation, IChaxMessage, IChaxStreamChunk } from "@chaxai-common";
+import { IChaxService, IChaxConversation, IChaxMessage, IChaxStreamChunk, IChaxConversationManagerBuilder } from "@chaxai-common";
 import path from "path";
 import * as fs from "fs";
 import { v4 as uuidv4 } from 'uuid';
@@ -23,10 +23,33 @@ import { v4 as uuidv4 } from 'uuid';
 
 export abstract class ChaxFileService implements IChaxService {
 
-
+    static build(conversationManagerBuilder: IChaxConversationManagerBuilder ,dirPath: string = process.env.CHAXAI_FILE_DIR || path.join(process.cwd(), './.chaxai_data')) {
+        return new class extends ChaxFileService {
+            conversationManager = conversationManagerBuilder.build(this);
+            constructor() {
+                super(dirPath);
+            }
+            /**
+             * 创建新会话
+             * @param msg 初始消息内容
+             * @returns 新会话对象
+             */
+            onCreateConversation(msg:string): Promise<IChaxConversation> {
+                return this.conversationManager.onCreateConversation(msg);
+            }
+            /**
+             * 继续会话
+             * @param conversationId 会话ID
+             * @param onChunk 流式响应回调函数
+             */
+            onContinueConversation(conversationId: string, onChunk: (chunk: IChaxStreamChunk) => void): void {
+                this.conversationManager.onContinueConversation(conversationId, onChunk);
+            }
+        }
+    }
 
     constructor(
-        protected readonly dirPath: string = process.env.CHAXAI_FILE_DIR || path.join(process.cwd(), './.chaxai_data'),
+        public readonly dirPath: string = process.env.CHAXAI_FILE_DIR || path.join(process.cwd(), './.chaxai_data'),
     ) {
     }
 
@@ -179,7 +202,7 @@ export abstract class ChaxFileService implements IChaxService {
      * @param conversationId 会话ID
      * @param onChunk 流式响应的回调函数，会被多次调用
      */
-    abstract onContinueConversation(message: string, conversationId: string, onChunk: (chunk: IChaxStreamChunk) => void): void;
+    abstract onContinueConversation(conversationId: string, onChunk: (chunk: IChaxStreamChunk) => void): void;
 
     /**
      * 根据会话ID获取会话对象
@@ -187,7 +210,7 @@ export abstract class ChaxFileService implements IChaxService {
      * @returns 会话对象
      * @throws 如果会话不存在或读取失败
      */
-    private getConversation(conversationId: string) {
+    getConversation(conversationId: string) {
         const listPath = this.getConversationListJsonPath();
         try {
             const content = fs.readFileSync(listPath, 'utf-8');
@@ -217,7 +240,7 @@ export abstract class ChaxFileService implements IChaxService {
      * @param message 要更新/添加的消息对象
      * @param data 可选的数据（content/chunk/error）
      */
-    private updateConversationMessageList(conversation: IChaxConversation, message: IChaxMessage, data: {
+    updateConversationMessageList(conversation: IChaxConversation, message: IChaxMessage, data: {
         chunk?: string,
         content?: string,
         error?: string,
@@ -262,7 +285,7 @@ export abstract class ChaxFileService implements IChaxService {
      * 3. onChatChunk 收到流式数据时，通过 update() 遍历调用所有回调
      * 4. 流结束时调用 finish() 从 Map 中删除该 msgId
      */
-    private respondChunkCallMap = new Map<string, ((chunk: IChaxStreamChunk) => void)[]>();
+    respondChunkCallMap = new Map<string, ((chunk: IChaxStreamChunk) => void)[]>();
 
     /**
      * 检查会话是否已完成
@@ -273,7 +296,7 @@ export abstract class ChaxFileService implements IChaxService {
      * @param conversationId 会话ID
      * @returns true 表示会话已完成，false 表示进行中
      */
-    private isConversationFinished(conversationId: string) {
+    isConversationFinished(conversationId: string) {
         const messageListPath = this.getConversationMessageListJsonPath(conversationId);
         try {
             const content = fs.readFileSync(messageListPath, 'utf-8');
@@ -311,8 +334,6 @@ export abstract class ChaxFileService implements IChaxService {
      * @throws 如果已有会话未完成时尝试发送新消息
      */
     async onSendChatMessage(message: string, conversationId?: string): Promise<IChaxConversation> {
-
-
 
         let conversation: IChaxConversation;
         if (!conversationId) {
@@ -416,7 +437,7 @@ export abstract class ChaxFileService implements IChaxService {
             }
         };
 
-        this.onContinueConversation(message, conversation.conversationId, onChatChunk);
+        this.onContinueConversation(conversation.conversationId, onChatChunk);
         this.updateConversationMessageList(conversation, aiUnfinishedMessage, { chunk: '' });
         this.respondChunkCallMap.set(aiUnfinishedMessage.msgId, []);
 

@@ -23,6 +23,15 @@ export class ChaxKoaMiddleWare {
     }
 
     /**
+     * 创建 Koa 中间件函数
+     * 
+     * @returns Koa 中间件函数，可用于 app.use()
+     */
+    createMiddleware(): (ctx: Context, next: Next) => Promise<void> {
+        return this.handle.bind(this);
+    }
+
+    /**
      * Koa 中间件入口
      * 
      * 路由分发逻辑：

@@ -28,6 +28,6 @@
       "@chaxai-common/*": ["../chaxai-common/src/*"]
     }
   },
-  "include": ["src", "../chaxai-common/src"],
+  "include": ["src", "../chaxai-common/src","test"],
   "exclude": ["node_modules", "dist"]
 }

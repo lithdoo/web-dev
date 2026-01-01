@@ -69,26 +69,41 @@ export interface IChaxClient {
     /** 发送聊天消息，可指定会话 ID，不指定则创建新会话 */
     sendChatMessage(message: string, conversationId?: string): Promise<IChaxConversation>;
     /** 获取单条消息的完整内容 */
-    fetchContentMessage(msgId: string): Promise<{ content: string , error: string}>;
+    fetchContentMessage(msgId: string): Promise<{ content: string, error: string }>;
     /** 流式获取消息内容，通过回调函数逐块接收数据 */
     fetchStreamMessage(msgId: string, onChunk: (chunk: IChaxStreamChunk) => void): Promise<void>;
 }
 
-/**
- * ChaxAI 服务接口
- * 定义服务端处理请求的方法
- */
-export interface IChaxService {
+
+export interface IChaxHistroyService {
     /** 处理获取所有聊天会话列表的请求 */
     onFetchChatConversations(): Promise<IChaxConversation[]>;
     /** 处理获取指定会话消息列表的请求 */
     onFetchChatMessages(conversationId: string): Promise<IChaxMessage[]>;
     /** 处理获取单条消息内容的请求 */
     onFetchContentMessage(msgId: string): Promise<{ content: string, error: string }>;
+}
+
+/**
+ * ChaxAI 服务接口
+ * 定义服务端处理请求的方法
+ */
+export interface IChaxService extends IChaxHistroyService {
     /** 处理发送聊天消息的请求 */
     onSendChatMessage(message: string, conversationId?: string): Promise<IChaxConversation>;
     /** 处理流式获取消息内容的请求 */
     onFetchStreamMessage(msgId: string, onChunk: (chunk: IChaxStreamChunk) => void): Promise<void>;
+}
+
+
+export interface IChaxConversationManager {
+    onCreateConversation(message: string): Promise<IChaxConversation>;
+    onContinueConversation(conversationId: string, onChunk: (chunk: IChaxStreamChunk) => void): void;
+}
+
+
+export interface IChaxConversationManagerBuilder  {
+    build(histroy: IChaxHistroyService): IChaxConversationManager;
 }
 
 /**
