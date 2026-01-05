@@ -87,7 +87,7 @@ const currentTitle = computed(() => {
 <style scoped>
 .chax {
   display: flex;
-  height: 100vh;
+  height: 100%;
   width: 100%;
   overflow: hidden;
   background-color: #ffffff;
