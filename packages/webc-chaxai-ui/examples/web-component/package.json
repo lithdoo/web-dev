@@ -1,0 +1,13 @@
+{
+  "name": "web-component-example",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "bun run serve",
+    "serve": "bunx http-server -p 3002 ."
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

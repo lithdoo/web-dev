@@ -1,0 +1,44 @@
+{
+  "name": "chaxai-client",
+  "version": "1.0.0",
+  "description": "Common utilities library for web and nodejs",
+  "type": "module",
+  "main": "./dist/chaxai-client.cjs",
+  "module": "./dist/chaxai-comclientmon.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/chaxai-client.js",
+      "require": "./dist/chaxai-client.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "common",
+    "utilities",
+    "typescript",
+    "vite"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/mdast": "^4.0.0",
+    "@types/node": "^20.10.0",
+    "@types/unist": "*",
+    "mdast-util-from-markdown": "^2.0.0",
+    "remark-parse": "^11.0.0",
+    "typescript": "^5.3.0",
+    "unified": "^11.0.0",
+    "vite": "^5.0.0",
+    "vite-plugin-dts": "^3.7.0"
+  }
+}

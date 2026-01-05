@@ -5,12 +5,12 @@
     "module": "ESNext",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
-    "composite": true,
 
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": false,
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "noEmit": true,
     "jsx": "preserve",
 
     "strict": true,
@@ -25,9 +25,12 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@chaxai-common": ["../chaxai-common/dist/index"],
+      "@chaxai-common/*": ["../chaxai-common/dist/*"]
     }
   },
   "include": ["src"],
+  "references": [{ "path": "../chaxai-common/tsconfig.json" }],
   "exclude": ["node_modules", "dist"]
 }

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Component Example</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #333;
+    }
+    .button {
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    .button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Web Component Example: webc-file-view</h1>
+    
+    <!-- 测试按钮 -->
+    <button class="button" id="setPropsBtn">Set Props</button>
+    <button class="button" id="clearPropsBtn">Clear Props</button>
+    
+    <!-- 使用自定义元素 -->
+    <file-view id="fileViewComponent"></file-view>
+    
+    <!-- 引入构建好的web-component文件 -->
+    <script src="../../dist/webc-file-view.wc.js"></script>
+    
+    <script>
+      // 创建 IFileViewHandler 实现
+      const handler = {
+        view: {
+          src: '',
+          viewType: 'list',
+          list: [
+            {
+              name: 'documents',
+              path: '/documents',
+              type: 'directory',
+              size: 0,
+              lastModified: Date.now()
+            },
+            {
+              name: 'report.pdf',
+              path: '/report.pdf',
+              type: 'file',
+              size: 1234567,
+              lastModified: Date.now()
+            },
+            {
+              name: 'presentation.pptx',
+              path: '/presentation.pptx',
+              type: 'file',
+              size: 5432100,
+              lastModified: Date.now()
+            }
+          ]
+        },
+        detailItem: undefined,
+        onDetailItemClick(item) {
+          console.log('Detail item clicked:', item);
+          this.detailItem = item;
+        },
+        onDetailItemClose() {
+          console.log('Detail item closed');
+          this.detailItem = undefined;
+        },
+        onChangeViewType(type) {
+          console.log('View type changed:', type);
+          this.view.viewType = type;
+        }
+      };
+      
+      // 获取自定义元素实例
+      const fileViewComponent = document.getElementById('fileViewComponent');
+      
+      // 设置 props
+      document.getElementById('setPropsBtn').addEventListener('click', () => {
+        fileViewComponent.setProps({ handler });
+        console.log('Props set successfully');
+      });
+      
+      // 清除 props
+      document.getElementById('clearPropsBtn').addEventListener('click', () => {
+        fileViewComponent.setProps({ handler: null });
+        console.log('Props cleared');
+      });
+    </script>
+  </div>
+</body>
+</html>
