@@ -54,15 +54,27 @@ export class ChaxReq<T = any> implements IChaxReq<T> {
 export class SSEMessage {
     content: string = ''
     error?: string
-    source?: EventSource
+    source?: EventSource | null
     request: IChaxReq
+    private isStarted: boolean = false
 
     constructor(public msgId: string, option?: { request?: IChaxReq }) {
         this.request = option?.request ?? new ChaxReq()
+        this.source = null
     }
 
     start() {
+        if (this.isStarted) return
+        this.isStarted = true
+
         this.source = this.request.sseContent(this.msgId)
+
+        if (!this.source) {
+            this.error = 'SSE 连接创建失败'
+            this.isStarted = false
+            this.onUpdate?.()
+            return
+        }
 
         this.source.onmessage = (event) => {
             const data = event.data
@@ -101,7 +113,8 @@ export class SSEMessage {
     close() {
         if (this.source) {
             this.source.close()
-            this.source = undefined
+            this.source = null
+            this.isStarted = false
             this.onClose?.()
         }
     }
@@ -112,7 +125,12 @@ export class SSEMessage {
 
 export class MsgBox {
     msgList: { [key: string]: IChaxMessage[] } = {}
-    msgContent: { [key: string]: string } = {}
+    msgContent: {
+        [key: string]: {
+            content: string,
+            error?: string
+        }
+    } = {}
     msgSSE: { [key: string]: SSEMessage } = {}
     request: IChaxReq
 
@@ -127,7 +145,8 @@ export class MsgBox {
     async reload(recordId: string) {
         // 关闭所有当前SSE连接
         this.closeAllSSE()
-        
+        this.msgListener = []
+
         const data = await this.request.fetchAllMessage(recordId)
         this.msgList[recordId] = data
         this.msgList[recordId].filter(v => {
@@ -138,6 +157,25 @@ export class MsgBox {
             sse.start()
             sse.onClose = () => {
                 delete this.msgSSE[msg.msgId]
+                this.msgListener.forEach(listener => {
+                    if (listener.msgId === msg.msgId) {
+                        listener.onUpdate(sse.error, sse.content, true)
+                    }
+                })
+                this.msgListener = this.msgListener.filter(listener => listener.msgId !== msg.msgId)
+
+            }
+            sse.onUpdate = () => {
+                this.msgListener.forEach(listener => {
+                    if (listener.msgId === msg.msgId) {
+                        listener.onUpdate(sse.error, sse.content, false)
+                    }
+                })
+            }
+        })
+        this.reloadWatcher.forEach(watcher => {
+            if (watcher.conversationId === recordId) {
+                watcher.onUpdate()
             }
         })
     }
@@ -145,7 +183,10 @@ export class MsgBox {
     async content(msgId: string, useCache = true) {
         if (useCache && this.msgContent[msgId]) return this.msgContent[msgId]
         const data = await this.request.fetchContent(msgId)
-        this.msgContent[msgId] = data.content
+        this.msgContent[msgId] = {
+            content: data.content,
+            error: data.error
+        }
         return data.content
     }
 
@@ -162,7 +203,52 @@ export class MsgBox {
             delete this.msgSSE[msgId]
         }
     }
+
+    msgListener: {
+        msgId: string
+        onUpdate: (error: string | undefined, content: string, isDone: boolean) => void
+    }[] = []
+
+
+    addMsgListener(
+        msgId: string,
+        onUpdate: (error: string | undefined, content: string, isDone: boolean) => void
+
+    ) {
+        this.msgListener.push({
+            msgId,
+            onUpdate
+        })
+    }
+
+    removeMsgListener(msgId: string) {
+        this.msgListener = this.msgListener.filter(v => v.msgId !== msgId)
+    }
+
+
+    reloadWatcher:{
+        conversationId: string
+        onUpdate: () => void
+    }[]  = []
+
+    addReloadWatcher(
+        conversationId: string,
+        onUpdate: () => void
+    ) {
+        this.reloadWatcher.push({
+            conversationId,
+            onUpdate
+        })
+    }
+
+    removeReloadWatcher(conversationId: string) {
+        this.reloadWatcher = this.reloadWatcher.filter(v => v.conversationId !== conversationId)
+    }
+
+
+
 }
+
 
 export class AIInputControl {
 
@@ -209,26 +295,33 @@ export class ChatControl {
     async loadRecords() {
         const data = await this.request.fetchAllConversation()
         this.list = data
+        this.onReloadConversationList?.()
     }
 
     async init() {
+        await this.loadRecords()
         this.input.onSubmit = (text) => {
             this.send(text)
         }
-        await this.loadRecords()
     }
 
     async load(id: string | null) {
         if (!id) {
             this.currentId = null
+            this.onConversationChange?.()
             return
         }
 
         if (this.list.some(v => v.conversationId === id)) {
             this.currentId = id
-            await this.refresh()
+            await this.refresh()    
+            this.onConversationChange?.()
         }
     }
+
+    onConversationChange?: () => void
+    onReloadConversationList?: () => void
+
 
     async send(content: string) {
         const extra = this.beforeSend?.(content)
