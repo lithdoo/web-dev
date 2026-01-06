@@ -23,7 +23,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export abstract class ChaxFileService implements IChaxService {
 
-    static build(conversationManagerBuilder: IChaxConversationManagerBuilder ,dirPath: string = process.env.CHAXAI_FILE_DIR || path.join(process.cwd(), './.chaxai_data')) {
+    static build(conversationManagerBuilder: IChaxConversationManagerBuilder, dirPath: string = process.env.CHAXAI_FILE_DIR || path.join(process.cwd(), './.chaxai_data')) {
         return new class extends ChaxFileService {
             conversationManager = conversationManagerBuilder.build(this);
             constructor() {
@@ -34,7 +34,7 @@ export abstract class ChaxFileService implements IChaxService {
              * @param msg 初始消息内容
              * @returns 新会话对象
              */
-            onCreateConversation(msg:string): Promise<IChaxConversation> {
+            onCreateConversation(msg: string): Promise<IChaxConversation> {
                 return this.conversationManager.onCreateConversation(msg);
             }
             /**
@@ -191,7 +191,7 @@ export abstract class ChaxFileService implements IChaxService {
      * @returns 创建的会话对象
      */
     abstract onCreateConversation(message: string): Promise<IChaxConversation>;
-    
+
     /**
      * 继续会话并触发 AI 流式响应（抽象方法，由子类实现）
      * 
@@ -213,6 +213,20 @@ export abstract class ChaxFileService implements IChaxService {
     getConversation(conversationId: string) {
         const listPath = this.getConversationListJsonPath();
         try {
+            // 确保目录存在
+            try {
+                fs.accessSync(this.getConversationRootPath());
+            } catch {
+                fs.mkdirSync(this.getConversationRootPath(), { recursive: true });
+            }
+
+            // 确保list.json存在
+            try {
+                fs.accessSync(listPath);
+            } catch {
+                fs.writeFileSync(listPath, '[]', 'utf-8');
+            }
+
             const content = fs.readFileSync(listPath, 'utf-8');
             const conversations = JSON.parse(content);
             return conversations.find((conv: IChaxConversation) => conv.conversationId === conversationId);
@@ -250,6 +264,13 @@ export abstract class ChaxFileService implements IChaxService {
             fs.accessSync(this.getConversationRootPath());
         } catch {
             fs.mkdirSync(this.getConversationRootPath(), { recursive: true });
+        }
+
+        // 确保消息存储目录存在
+        try {
+            fs.accessSync(this.getMessageRootPath());
+        } catch {
+            fs.mkdirSync(this.getMessageRootPath(), { recursive: true });
         }
         try {
             fs.accessSync(messageListPath);
@@ -301,7 +322,7 @@ export abstract class ChaxFileService implements IChaxService {
         try {
             const content = fs.readFileSync(messageListPath, 'utf-8');
             const messages = JSON.parse(content);
-            return messages.some((msg: IChaxMessage) => msg.role === 'assistant' && msg.unfinished);
+            return !messages.find((msg: IChaxMessage) => this.respondChunkCallMap.has(msg.msgId));
         } catch (error) {
             return false;
         }
@@ -338,6 +359,26 @@ export abstract class ChaxFileService implements IChaxService {
         let conversation: IChaxConversation;
         if (!conversationId) {
             conversation = await this.onCreateConversation(message);
+
+            // 确保会话根目录和list.json存在
+            try {
+                fs.accessSync(this.getConversationRootPath());
+            } catch {
+                fs.mkdirSync(this.getConversationRootPath(), { recursive: true });
+            }
+
+            const listPath = this.getConversationListJsonPath();
+            try {
+                fs.accessSync(listPath);
+            } catch {
+                fs.writeFileSync(listPath, '[]', 'utf-8');
+            }
+
+            // 将新会话添加到会话列表
+            const content = fs.readFileSync(listPath, 'utf-8');
+            const conversations = JSON.parse(content);
+            conversations.push(conversation);
+            fs.writeFileSync(listPath, JSON.stringify(conversations, null, 2), 'utf-8');
         } else {
             conversation = this.getConversation(conversationId);
             if (!this.isConversationFinished(conversation.conversationId)) {
@@ -410,7 +451,7 @@ export abstract class ChaxFileService implements IChaxService {
              * 
              * @param chunk 要广播的数据块
              */
-            const update = (chunk: IChaxStreamChunk)=>{
+            const update = (chunk: IChaxStreamChunk) => {
                 this.respondChunkCallMap.get(aiUnfinishedMessage.msgId)?.forEach(call => call(chunk));
             }
 
@@ -464,25 +505,42 @@ export abstract class ChaxFileService implements IChaxService {
      * @param msgId 消息ID
      * @param onRespondChunk 接收流式数据的回调函数
      */
-    async onFetchStreamMessage(msgId: string, onRespondChunk: (chunk: IChaxStreamChunk) => void): Promise<void> {
-        const chunkCallList = this.respondChunkCallMap.get(msgId);
+    onFetchStreamMessage(msgId: string, onRespondChunk: (chunk: IChaxStreamChunk) => void): Promise<void> {
 
-        const content = fs.readFileSync(this.getMessageContentPath(msgId), 'utf-8');
+        return new Promise((res) => {
+            const chunkCallList = this.respondChunkCallMap.get(msgId);
 
-        if (content) {
-            onRespondChunk({
-                type: 'init',
-                content,
-            });
-        }
+            let content = '';
+            try {
+                content = fs.readFileSync(this.getMessageContentPath(msgId), 'utf-8');
+            } catch (err) {
+                // 文件不存在，返回空内容
+            }
 
-        if (chunkCallList) {
-            chunkCallList.push(onRespondChunk);
-        } else {
-            onRespondChunk({
-                type: 'done',
-                content: '',
-            });
-        }
+            if (content) {
+                onRespondChunk({
+                    type: 'init',
+                    content,
+                });
+            }
+
+            if (chunkCallList) {
+                chunkCallList.push((data)=>{
+                    onRespondChunk(data);
+                    if(data.type === 'error' || data.type === 'done'){
+                        res()
+                    }
+                });
+                return new Promise(() => { })
+            } else {
+                onRespondChunk({
+                    type: 'done',
+                    content: '',
+                });
+
+                res()
+            }
+        })
+
     }
 }

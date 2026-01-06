@@ -118,10 +118,10 @@ export const ChaxApiPath = {
     },
     /** 获取指定会话的消息列表 */
     fetchChatMessages: {
-        path: '/ai/message/list/{recordId}',
+        path: '/ai/message/list/{conversationId}',
         method: 'GET',
         args: {
-            recordId: 'recordId',
+            conversationId: 'conversationId',
         },
     },
     /** 发送聊天消息 */
@@ -129,7 +129,7 @@ export const ChaxApiPath = {
         path: '/ai/chat',
         method: 'POST',
         args: {
-            recordId: 'recordId',
+            conversationId: 'conversationId',
             content: 'content',
         },
     },

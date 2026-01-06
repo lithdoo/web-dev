@@ -16,7 +16,7 @@ import { ChaxFileService } from "./FileService";
  * - SimpleChatKoaMiddleWare: Koa 中间件，集成到 HTTP 服务
  */
 export class SimpleChat implements IChaxConversationManagerBuilder {
-    
+
     /**
      * 构建一个 SimpleChatManager 实例
      * 
@@ -40,13 +40,13 @@ export class SimpleChat implements IChaxConversationManagerBuilder {
  * 3. processConversation: 内部方法，处理消息历史和 AI 流式响应
  */
 export class SimpleChatManager implements IChaxConversationManager {
-    
+
     /**
      * 历史消息服务
      * 用于获取和存储对话历史记录
      */
     private history: IChaxHistroyService;
-    
+
     /**
      * DeepSeek 聊天模型实例
      * 使用 LangChain 提供的 DeepSeek 集成
@@ -60,9 +60,11 @@ export class SimpleChatManager implements IChaxConversationManager {
      */
     constructor(history: IChaxHistroyService) {
         this.history = history;
+        const DEEPSEEK_API_KEY = 'sk-5069284b93a7481db08a15f65628906a';
         this.deepseek = new ChatDeepSeek({
             model: 'deepseek-chat',
-            apiKey: process.env.DEEPSEEK_API_KEY,
+            // apiKey: process.env.DEEPSEEK_API_KEY,
+            apiKey: DEEPSEEK_API_KEY,
             temperature: 0.7,
         });
     }
@@ -82,7 +84,7 @@ export class SimpleChatManager implements IChaxConversationManager {
         if (!message || message.trim().length === 0) {
             throw new Error('Message cannot be empty');
         }
-        
+
         const conversationId = uuidv4();
         const conversation: IChaxConversation = {
             conversationId,
@@ -90,7 +92,7 @@ export class SimpleChatManager implements IChaxConversationManager {
             updateTimestamp: Date.now(),
             title: message.slice(0, 50),
         };
-        
+
         return conversation;
     }
 
@@ -132,7 +134,7 @@ export class SimpleChatManager implements IChaxConversationManager {
      */
     private async processConversation(conversationId: string, onChunk: (chunk: IChaxStreamChunk) => void): Promise<void> {
         let messages: IChaxMessage[];
-        
+
         try {
             messages = await this.history.onFetchChatMessages(conversationId);
         } catch (error) {
@@ -171,21 +173,21 @@ export class SimpleChatManager implements IChaxConversationManager {
         } catch (error) {
             userMessage = '';
         }
-        
+
         conversationMessages.push(new ChatMessage(userMessage || '', 'user'));
 
-        const aiMsgId = uuidv4();
+        // const aiMsgId = uuidv4();
 
         onChunk({
             type: 'init',
-            content: aiMsgId
+            content: ''
         });
 
         const stream = await this.deepseek.stream(conversationMessages);
 
         let fullContent = '';
         for await (const chunk of stream) {
-            const text = typeof chunk === 'string' ? chunk : '';
+            const text = chunk.content.toString()
             fullContent += text;
             onChunk({
                 type: 'chunk',
@@ -208,7 +210,7 @@ export class SimpleChatManager implements IChaxConversationManager {
  * 
  * API 端点:
  * - GET /ai/record/list - 获取会话列表
- * - GET /ai/message/list/{recordId} - 获取会话消息
+ * - GET /ai/message/list/{conversationId} - 获取会话消息
  * - POST /ai/chat - 发送消息
  * - GET /ai/message/content/{msgId} - 获取消息内容
  * - GET /ai/message/stream/{msgId} - 流式获取消息
@@ -220,7 +222,7 @@ export class SimpleChatManager implements IChaxConversationManager {
  * ```
  */
 export class SimpleChatKoaMiddleWare extends ChaxKoaMiddleWare {
-    
+
     /**
      * 构造函数
      * 

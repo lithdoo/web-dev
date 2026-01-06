@@ -11,8 +11,8 @@ import type { Context, Next } from "koa";
  * 
  * API 端点映射：
  * - GET  /ai/record/list           → onFetchChatConversations()
- * - GET  /ai/message/list/:recordId → onFetchChatMessages(recordId)
- * - POST /ai/chat                  → onSendChatMessage(content, recordId)
+ * - GET  /ai/message/list/:conversationId → onFetchChatMessages(conversationId)
+ * - POST /ai/chat                  → onSendChatMessage(content, conversationId)
  * - GET  /ai/message/content/:msgId → onFetchContentMessage(msgId)
  * - GET  /ai/message/stream/:msgId → onFetchStreamMessage(msgId, onChunk)
  */
@@ -74,13 +74,13 @@ export class ChaxKoaMiddleWare {
 
             if (method === 'POST' && path === ChaxApiPath.sendChatMessage.path) {
                 const body = (ctx.request as any).body as Record<string, any>;
-                const { recordId, content } = body;
+                const { conversationId, content } = body;
                 if (!content) {
                     ctx.status = 400;
                     ctx.body = { error: 'content is required' };
                     return;
                 }
-                ctx.body = await this.chaxService.onSendChatMessage(content, recordId);
+                ctx.body = await this.chaxService.onSendChatMessage(content, conversationId);
                 return;
             }
 
@@ -116,17 +116,12 @@ export class ChaxKoaMiddleWare {
         ctx.status = 200;
 
         const sendEvent = (chunk: IChaxStreamChunk): void => {
-            ctx.res.write(`event: ${chunk.type}\n`);
+            // ctx.res.write(`event: ${chunk.type}\n`);
             ctx.res.write(`data: ${JSON.stringify(chunk)}\n\n`);
         };
 
         try {
             await this.chaxService.onFetchStreamMessage(msgId, sendEvent);
-
-            sendEvent({
-                type: 'done',
-                content: '',
-            });
         } catch (error) {
             sendEvent({
                 type: 'error',

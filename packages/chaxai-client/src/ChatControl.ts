@@ -287,7 +287,6 @@ export class AIInputControl {
     }]
 
     submit() {
-        console.log(this)
         if (this.isDisabled) return
         this.onSubmit?.(this.userInput)
         this.userInput = ''
@@ -335,7 +334,6 @@ export class ChatControl {
     }
 
     async load(id: string | null) {
-        console.log('load', id, this.currentId)
         if (!id) {
             this.currentId = null
             this.onConversationChange?.()
