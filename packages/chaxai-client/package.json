@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "dev:example": "vite example",
+    "dev:example": "vite example/only-client",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
