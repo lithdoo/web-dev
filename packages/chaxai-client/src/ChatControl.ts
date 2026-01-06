@@ -5,13 +5,13 @@ import { TabControl } from "./TabControl"
 
 export interface IChaxReq<T = any> {
     fetchAllConversation(): Promise<IChaxConversation[]>
-    fetchAllMessage(recordId: string): Promise<IChaxMessage[]>
+    fetchAllMessage(conversationId: string): Promise<IChaxMessage[]>
     fetchContent(msgId: string): Promise<{ content: string, error?: string }>
     send(input: {
-        recordId?: string
+        conversationId?: string
         content: string,
         extra: T
-    }): Promise<{ recordId: string }>
+    }): Promise<{ conversationId: string }>
 
     sseContent(msgId: string): EventSource
 }
@@ -22,21 +22,21 @@ export class ChaxReq<T = any> implements IChaxReq<T> {
         return await res.json()
     }
 
-    async fetchAllMessage(recordId: string): Promise<IChaxMessage[]> {
-        const res = await fetch(`/ai/message/list/${recordId}`)
+    async fetchAllMessage(conversationId: string): Promise<IChaxMessage[]> {
+        const res = await fetch(`/ai/message/list/${conversationId}`)
         return await res.json()
     }
 
     async fetchContent(msgId: string): Promise<{ content: string; error?: string }> {
         const res = await fetch(`/ai/message/content/${msgId}`)
-        const content = await res.text()
-        return { content }
+        const data = await res.json()
+        return data
     }
 
-    async send(input: { recordId?: string; content: string; extra: T }): Promise<{ recordId: string }> {
+    async send(input: { conversationId?: string; content: string; extra: T }): Promise<{ conversationId: string }> {
         const res = await fetch('/ai/chat', {
             body: JSON.stringify({
-                recordId: input.recordId || null,
+                conversationId: input.conversationId || null,
                 content: input.content,
                 extra: input.extra
             }),
@@ -47,7 +47,7 @@ export class ChaxReq<T = any> implements IChaxReq<T> {
     }
 
     sseContent(msgId: string): EventSource {
-        return new EventSource(`/ai/message/content/sse/${msgId}`)
+        return new EventSource(`/ai/message/stream/${msgId}`)
     }
 }
 
@@ -142,14 +142,39 @@ export class MsgBox {
         return !![...Object.values(this.msgSSE)].length
     }
 
-    async reload(recordId: string) {
+    async reload(conversationId: string) {
         // 关闭所有当前SSE连接
         this.closeAllSSE()
         this.msgListener = []
 
-        const data = await this.request.fetchAllMessage(recordId)
-        this.msgList[recordId] = data
-        this.msgList[recordId].filter(v => {
+        const data = await this.request.fetchAllMessage(conversationId)
+        this.msgList[conversationId] = data
+        this.msgList[conversationId].filter(v => {
+            return v.unfinished
+        }).forEach(msg => {
+            const sse = new SSEMessage(msg.msgId, { request: this.request })
+            this.msgSSE[msg.msgId] = sse
+            sse.start()
+            sse.onClose = () => {
+                delete this.msgSSE[msg.msgId]
+                this.msgListener.forEach(listener => {
+                    if (listener.msgId === msg.msgId) {
+                        listener.onUpdate(sse.error, sse.content, true)
+                    }
+                })
+                this.msgListener = this.msgListener.filter(listener => listener.msgId !== msg.msgId)
+
+            }
+            sse.onUpdate = () => {
+                this.msgListener.forEach(listener => {
+                    if (listener.msgId === msg.msgId) {
+                        listener.onUpdate(sse.error, sse.content, false)
+                    }
+                })
+            }
+        })
+
+        this.msgList[conversationId].filter(v => {
             return v.unfinished
         }).forEach(msg => {
             const sse = new SSEMessage(msg.msgId, { request: this.request })
@@ -174,7 +199,7 @@ export class MsgBox {
             }
         })
         this.reloadWatcher.forEach(watcher => {
-            if (watcher.conversationId === recordId) {
+            if (watcher.conversationId === conversationId) {
                 watcher.onUpdate()
             }
         })
@@ -187,7 +212,7 @@ export class MsgBox {
             content: data.content,
             error: data.error
         }
-        return data.content
+        return data
     }
 
     closeAllSSE() {
@@ -226,10 +251,10 @@ export class MsgBox {
     }
 
 
-    reloadWatcher:{
+    reloadWatcher: {
         conversationId: string
         onUpdate: () => void
-    }[]  = []
+    }[] = []
 
     addReloadWatcher(
         conversationId: string,
@@ -262,6 +287,7 @@ export class AIInputControl {
     }]
 
     submit() {
+        console.log(this)
         if (this.isDisabled) return
         this.onSubmit?.(this.userInput)
         this.userInput = ''
@@ -284,6 +310,9 @@ export class ChatControl {
     constructor(option?: { request?: IChaxReq }) {
         this.request = option?.request ?? new ChaxReq()
         this.msgbox = new MsgBox({ request: this.request })
+        this.input.onSubmit = (text) => {
+            this.send(text)
+        }
     }
 
     async refresh(): Promise<void> {
@@ -306,6 +335,7 @@ export class ChatControl {
     }
 
     async load(id: string | null) {
+        console.log('load', id, this.currentId)
         if (!id) {
             this.currentId = null
             this.onConversationChange?.()
@@ -314,7 +344,7 @@ export class ChatControl {
 
         if (this.list.some(v => v.conversationId === id)) {
             this.currentId = id
-            await this.refresh()    
+            await this.refresh()
             this.onConversationChange?.()
         }
     }
@@ -328,13 +358,13 @@ export class ChatControl {
         if (extra === false) return
 
         const result = await this.request.send({
-            recordId: this.currentId || undefined,
+            conversationId: this.currentId || undefined,
             content,
             extra
         })
 
         await this.loadRecords()
-        await this.load(result.recordId)
+        await this.load(result.conversationId)
     }
 
     beforeSend?(content: string): any | false

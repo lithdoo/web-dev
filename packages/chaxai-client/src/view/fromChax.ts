@@ -102,17 +102,28 @@ export class RecChaxMessage implements IRecChaxMessage {
         this.msgId = msg.msgId
         this.type = msg.role === 'user' ? 'user' : 'assistant'
 
+        
+
     }
 
 
-    init() {
+    async init() {
         const updateListner = (error: string | undefined, content: string, isDone: boolean) => {
             this.error = error
             this.content = content
             this.unfinished = !isDone
         }
 
-        this.box.addMsgListener(this.msgId, updateListner)
+        if (this.msg.unfinished) {
+            this.box.addMsgListener(this.msgId, updateListner)
+        } else {
+            const {error, content} = await this.box.content(this.msgId)
+
+            this.error = error
+            this.content = content
+        }
+
+        
     }
 
     dispose() {
@@ -196,6 +207,7 @@ export class RecChax {
 
         target.onConversationChange = () => {
             currentId.value = target.currentId
+            console.log('currentId', currentId.value)
         }
 
 

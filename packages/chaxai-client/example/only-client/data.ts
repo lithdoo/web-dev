@@ -1,7 +1,7 @@
-import type { IRecChax, IRecChaxCoversation } from '../src/view/interface'
-import { ChatControl, IChaxReq } from '../src/ChatControl'
+import type { IRecChax, IRecChaxCoversation } from '@/view/interface'
+import { ChatControl, IChaxReq } from '@/ChatControl'
 import type { IChaxMessage, IChaxConversation } from "@chaxai-common"
-import { RecChax } from '../src/view/fromChax'
+import { RecChax } from '@/view/fromChax'
 import { Ref, ref, computed } from 'vue'
 
 export const mockHistoryList = [
@@ -151,9 +151,9 @@ class MockChaxReq implements IChaxReq {
     }))
   }
 
-  async fetchAllMessage(recordId: string): Promise<IChaxMessage[]> {
+  async fetchAllMessage(conversationId: string): Promise<IChaxMessage[]> {
     // 如果是当前对话，返回mockMessages转换后的格式
-    if (recordId === 'conv-1') {
+    if (conversationId === 'conv-1') {
       return mockMessages.map(m => ({
         msgId: m.msgId,
         role: m.type === 'user' ? 'user' : 'assistant',
@@ -175,13 +175,13 @@ class MockChaxReq implements IChaxReq {
   }
 
   async send(input: {
-    recordId?: string
+    conversationId?: string
     content: string,
     extra: any
-  }): Promise<{ recordId: string }> {
-    // 模拟发送消息，返回当前recordId
+  }): Promise<{ conversationId: string }> {
+    // 模拟发送消息，返回当前conversationId
     return {
-      recordId: input.recordId || 'conv-1',
+      conversationId: input.conversationId || 'conv-1',
     }
   }
 
