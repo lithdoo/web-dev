@@ -1,4 +1,4 @@
-import { type IChaxHistroyService, type IChaxConversation, type IChaxMessage, type IChaxStreamChunk, type IChaxConversationManager, type IChaxConversationManagerBuilder } from "@chaxai-common";
+import { type IChaxHistroyService, type IChaxConversation, type IChaxMessageInfo, type IChaxStreamChunk, type IChaxConversationManager, type IChaxConversationManagerBuilder } from "@chaxai-common";
 import { ChatDeepSeek } from '@langchain/deepseek';
 import { ChatMessage } from '@langchain/core/messages';
 import { v4 as uuidv4 } from 'uuid';
@@ -133,7 +133,7 @@ export class SimpleChatManager implements IChaxConversationManager {
      * @param onChunk 流式响应回调函数
      */
     private async processConversation(conversationId: string, onChunk: (chunk: IChaxStreamChunk) => void): Promise<void> {
-        let messages: IChaxMessage[];
+        let messages: IChaxMessageInfo[];
 
         try {
             messages = await this.history.onFetchChatMessages(conversationId);
@@ -147,8 +147,8 @@ export class SimpleChatManager implements IChaxConversationManager {
 
         const conversationMessages: ChatMessage[] = await Promise.all(
             messages
-                .filter((msg: IChaxMessage) => msg.visiableInClient)
-                .map(async (msg: IChaxMessage) => {
+                .filter((msg: IChaxMessageInfo) => msg.visiableInClient)
+                .map(async (msg: IChaxMessageInfo) => {
                     let content: string;
                     try {
                         const result = await this.history.onFetchContentMessage(msg.msgId);

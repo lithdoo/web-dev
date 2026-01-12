@@ -1,6 +1,6 @@
 import type { IRecChax, IRecChaxCoversation } from '@/view/interface'
 import { ChatControl, IChaxReq } from '@/ChatControl'
-import type { IChaxMessage, IChaxConversation } from "@chaxai-common"
+import type { IChaxMessageInfo, IChaxConversation } from "@chaxai-common"
 import { RecChax } from '@/view/fromChax'
 import { Ref, ref, computed } from 'vue'
 
@@ -151,7 +151,7 @@ class MockChaxReq implements IChaxReq {
     }))
   }
 
-  async fetchAllMessage(conversationId: string): Promise<IChaxMessage[]> {
+  async fetchAllMessage(conversationId: string): Promise<IChaxMessageInfo[]> {
     // 如果是当前对话，返回mockMessages转换后的格式
     if (conversationId === 'conv-1') {
       return mockMessages.map(m => ({

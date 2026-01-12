@@ -1,5 +1,5 @@
 import { ChatControl, AIInputControl, MsgBox } from "@/ChatControl"
-import { IChaxConversation, IChaxMessage } from "@chaxai-common"
+import { IChaxConversation, IChaxMessageInfo } from "@chaxai-common"
 import { Ref, computed, markRaw, reactive, ref } from "vue"
 import { IRecChax, IRecChaxCoversation, IRecChaxHistory, IRecChaxInput, IRecChaxMessage } from "./interface"
 
@@ -73,8 +73,8 @@ export class RecChaxInput implements IRecChaxInput {
 
 export class RecChaxMessage implements IRecChaxMessage {
 
-    static cache: WeakMap<IChaxMessage, RecChaxMessage> = new WeakMap()
-    static from(msg: IChaxMessage, box: MsgBox): RecChaxMessage {
+    static cache: WeakMap<IChaxMessageInfo, RecChaxMessage> = new WeakMap()
+    static from(msg: IChaxMessageInfo, box: MsgBox): RecChaxMessage {
         let message = this.cache.get(msg)
         if (!message) {
             message = reactive(new RecChaxMessage(msg, box)) as RecChaxMessage
@@ -93,7 +93,7 @@ export class RecChaxMessage implements IRecChaxMessage {
     createTime: number = 0;
 
     constructor(
-        protected msg: IChaxMessage,
+        protected msg: IChaxMessageInfo,
         protected box: MsgBox
     ) {
         markRaw(msg)

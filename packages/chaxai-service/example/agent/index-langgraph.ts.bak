@@ -1,0 +1,406 @@
+import { ChatDeepSeek } from '@langchain/deepseek';
+import { Tool } from '@langchain/core/tools';
+import { ChatPromptTemplate } from '@langchain/core/prompts';
+import { DuckDuckGoSearch } from '@langchain/community/tools/duckduckgo_search';
+import { BufferMemory } from 'langchain/memory';
+import { MessagesPlaceholder } from '@langchain/core/prompts';
+import { FileSystemChatMessageHistory } from '@langchain/community/stores/message/file_system';
+import { StateGraph, END } from '@langchain/langgraph';
+import { AgentAction, AgentFinish } from '@langchain/core/agents';
+import { RunnableSequence } from '@langchain/core/runnables';
+import { Annotation } from '@langchain/langgraph';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+
+/**
+ * ReadFileTool - 用于读取文件内容的工具类
+ * 
+ * 提供安全的文件读取功能，包括：
+ * - 绝对路径解析
+ * - 文件存在检查
+ * - 文件类型限制（防止读取危险文件）
+ */
+class ReadFileTool extends Tool {
+  name = 'read_file';
+  description = '读取指定路径的文件内容。当你需要查看文件内容来回答问题时使用此工具。参数是文件路径字符串。';
+  /**
+   * 允许读取的文件扩展名列表
+   */
+  private allowedExtensions = [
+    '.txt', '.js', '.ts', '.json', '.md', '.html', '.css',
+    '.yaml', '.yml', '.xml', '.csv', '.log'
+  ];
+  
+  /**
+   * 执行文件读取操作
+   * @param filePath 文件路径字符串
+   * @returns 文件内容或错误信息
+   */
+  async _call(filePath: string): Promise<string> {
+    try {
+      console.log('ReadFileTool._call 输入参数:', filePath);
+      
+      if (!filePath) {
+        return `错误：文件路径不能为空。`;
+      }
+      
+      // 解析绝对路径
+      const absolutePath = path.isAbsolute(filePath) 
+        ? filePath 
+        : path.join(process.cwd(), filePath);
+      
+      // 检查文件是否存在
+      const stats = await fs.stat(absolutePath);
+      if (!stats.isFile()) {
+        return `错误：${filePath} 不是一个文件。`;
+      }
+      
+      // 检查文件扩展名
+      const ext = path.extname(absolutePath).toLowerCase();
+      if (!this.allowedExtensions.includes(ext)) {
+        return `错误：不允许读取 ${ext} 类型的文件。`;
+      }
+      
+      // 读取文件内容
+      const content = await fs.readFile(absolutePath, 'utf-8');
+      return `文件 ${filePath} 的内容：\n\n${content}`;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return `错误：文件 ${filePath} 不存在。`;
+      }
+      return `错误：读取文件时发生错误 - ${(error as Error).message}`;
+    }
+  }
+}
+
+/**
+ * 初始化 DeepSeek LLM 实例
+ */
+const initDeepSeek = () => {
+  const DEEPSEEK_API_KEY = 'sk-5069284b93a7481db08a15f65628906a';
+  
+  return new ChatDeepSeek({
+    model: 'deepseek-chat',
+    apiKey: DEEPSEEK_API_KEY,
+    temperature: 0.7,
+  });
+};
+
+// 定义状态结构
+interface AgentState {
+  input: string;
+  thinking: string;
+  answer: string;
+  chat_history: any[];
+  tool_calls?: any[];
+  tool_result?: string;
+  scratchpad?: string;
+}
+
+// 使用Annotation定义状态结构
+const agentStateAnnotation = Annotation.Root({
+  input: Annotation<string>(),
+  thinking: Annotation<string>(),
+  answer: Annotation<string>(),
+  chat_history: Annotation<any[]>(),
+  tool_calls: Annotation<any[]>(),
+  tool_result: Annotation<string | undefined>(),
+  scratchpad: Annotation<string | undefined>(),
+});
+
+/**
+ * 创建并配置 Agent
+ * @returns 配置好的 AgentExecutor
+ */
+// 创建记忆存储目录
+const createMemoryDir = async () => {
+  const memoryDir = path.join(process.cwd(), '.agent_memory');
+  try {
+    await fs.mkdir(memoryDir, { recursive: true });
+    console.log(`记忆存储目录已创建：${memoryDir}`);
+  } catch (error) {
+    console.error('创建记忆存储目录失败：', error);
+  }
+  return memoryDir;
+};
+
+const createLangGraphAgent = async () => {
+  // 初始化 LLM
+  const llm = initDeepSeek();
+  
+  // 创建工具
+  const tools = [new ReadFileTool(), new DuckDuckGoSearch({ maxResults: 5 })];
+  
+  // 创建记忆存储目录
+  const memoryDir = await createMemoryDir();
+  
+  // 创建文件存储的对话历史
+  const chatHistory = new FileSystemChatMessageHistory({
+    sessionId: 'default',
+    filePath: path.join(memoryDir, 'chat_history-langgraph.json')
+  });
+  
+  // 创建持久化记忆组件
+  const memory = new BufferMemory({
+    memoryKey: 'chat_history',
+    returnMessages: true,
+    outputKey: 'output',
+    chatHistory
+  });
+
+  // 创建思考节点的提示模板
+  const thinkingPrompt = ChatPromptTemplate.fromMessages([
+    [
+      'system',
+      `你是一个智能助手，现在需要对用户的问题进行深度思考。
+      请分析问题的要求，思考解决问题的步骤和方法。
+      不要直接给出最终答案，只需要输出你的思考过程。
+      思考过程应该结构化、逻辑清晰，使用自然语言表达。
+      不要包含任何工具调用格式或JSON代码块。
+      `
+    ],
+    new MessagesPlaceholder('chat_history'),
+    ['human', '{input}'],
+  ]);
+
+  // 创建回答节点的提示模板
+  const answerPrompt = ChatPromptTemplate.fromMessages([
+    [
+      'system',
+      `你是一个智能助手，具有读取文件和网络搜索的能力。
+      你可以使用工具来帮助回答问题。
+      请根据用户的问题、思考过程和工具结果，决定是否需要使用工具，以及如何使用工具。
+      
+      重要要求：
+      1. 当用户要求查看文件内容时，你必须使用read_file工具
+      2. 当你需要获取最新的外部信息或不知道答案时，你必须使用duckduckgo-search工具
+      3. 如果有工具结果（tool_result），请**务必结合工具结果**直接回答用户的问题，不要使用工具调用格式
+      4. 只有当没有工具结果时，你才需要使用工具调用格式
+      5. 工具调用格式必须是：
+      \`\`\`json
+      {{"toolcall": {{"thought": "你的思考过程", "name": "工具名称", "params": {{"参数名": "参数值"}}}}}}
+      \`\`\`
+      
+      6. 工具调用必须包含在json代码块中
+      7. 工具名称必须是read_file或duckduckgo-search中的一个
+      8. read_file工具的参数名是filePath，值是文件路径
+      9. duckduckgo-search工具的参数名是query，值是搜索关键词
+      10. 如果你已经通过工具获得了足够的信息来回答问题，请**直接给出答案**，不要再次调用工具
+      `
+    ],
+    new MessagesPlaceholder('chat_history'),
+    ['human', '{input}'],
+    ['system', '思考过程：\n{thinking}'],
+    ['system', '工具结果：\n{tool_result}'],
+  ]);
+
+  // 创建思考节点
+  const thinkingNode = async (state: AgentState) => {
+    const thinkingChain = thinkingPrompt.pipe(llm);
+    const result = await thinkingChain.invoke({
+      input: state.input,
+      chat_history: state.chat_history
+    });
+    return { 
+      thinking: `\`\`\`lang=thinking\n${result.content}\n\`\`\``
+    } as any;
+  };
+
+  // 创建回答节点
+  const respondNode = async (state: AgentState) => {
+    // 始终调用LLM生成回答
+    const answerChain = answerPrompt.pipe(llm);
+    const result = await answerChain.invoke({
+      input: state.input,
+      thinking: state.thinking,
+      chat_history: state.chat_history,
+      tool_result: state.tool_result || ""
+    });
+    
+    // 将MessageContent转换为string
+    const contentAsString = typeof result.content === 'string' ? result.content : JSON.stringify(result.content);
+    
+    // 如果有工具结果，直接返回最终答案，不再检查工具调用
+    if (state.tool_result) {
+      // 清理可能包含工具调用格式的回答
+      const finalAnswer = contentAsString.replace(/```json[\s\S]*?```/g, '').trim();
+      return { answer: finalAnswer || "已完成任务" } as any;
+    }
+    
+    // 检查是否需要调用工具
+    const toolCallMatch = contentAsString.match(/```json\s*({[\s\S]*?})\s*```/);
+    if (toolCallMatch) {
+      try {
+        const toolCallJson = JSON.parse(toolCallMatch[1]);
+        const toolCall = toolCallJson.toolcall;
+        
+        console.log('检测到工具调用：', JSON.stringify(toolCall, null, 2));
+        
+        // 确保工具调用格式正确
+        if (toolCall && toolCall.name && toolCall.params) {
+          return {
+            tool_calls: [{ 
+              id: "tool_call_1",
+              name: toolCall.name,
+              params: toolCall.params
+            }]
+          } as any;
+        } else {
+          console.error('工具调用格式不正确：', toolCall);
+          return { answer: result.content } as any;
+        }
+      } catch (e) {
+        console.error('解析工具调用失败：', e);
+        // 如果解析失败，直接返回回答
+        return { answer: result.content } as any;
+      }
+    }
+    
+    return { answer: result.content } as any;
+  };
+
+  // 创建工具调用节点
+  const toolCallNode = async (state: AgentState) => {
+    if (!state.tool_calls || state.tool_calls.length === 0) {
+      return { 
+        tool_result: "没有需要调用的工具",
+        tool_calls: [] as any[] 
+      } as any;
+    }
+    
+    console.log('执行工具调用节点');
+    const toolCall = state.tool_calls[0];
+    const tool = tools.find(t => t.name === toolCall.name);
+    
+    if (!tool) {
+      return { 
+        tool_result: `工具 ${toolCall.name} 不存在`,
+        tool_calls: [] as any[]  // 清除工具调用列表
+      } as any;
+    }
+    
+    try {
+      console.log('当前工作目录：', process.cwd());
+      console.log('工具名称：', toolCall.name);
+      console.log('原始参数：', JSON.stringify(toolCall.params, null, 2));
+      
+      // 处理不同工具的调用方式
+      let result;
+      
+      if (toolCall.name === 'read_file') {
+        // read_file工具需要直接传递文件路径字符串
+        const filePath = toolCall.params.filePath || toolCall.params.path;
+        console.log('直接传递文件路径：', filePath);
+        result = await tool.invoke(filePath);
+      } else {
+        // 其他工具传递参数对象
+        result = await tool.invoke(toolCall.params);
+      }
+      console.log('工具调用结果：', result);
+      
+      return { 
+        tool_result: result,
+        tool_calls: [] as any[]  // 清除工具调用列表
+      } as any;
+    } catch (error) {
+      console.error('调用工具失败：', error);
+      return { 
+        tool_result: `调用工具 ${toolCall.name} 时发生错误：${(error as Error).message}`,
+        tool_calls: [] as any[]  // 清除工具调用列表
+      } as any;
+    }
+  };
+
+  // 创建状态图
+  const graph = new StateGraph(agentStateAnnotation)
+    .addNode("think", thinkingNode)
+    .addNode("respond", respondNode)
+    .addNode("call_tool", toolCallNode)
+    .addEdge("think", "respond")
+    .addConditionalEdges(
+      "respond", 
+      (state) => {
+        const agentState = state as AgentState;
+        console.log('条件分支判断 - tool_calls:', JSON.stringify(agentState.tool_calls, null, 2));
+        return agentState.tool_calls && agentState.tool_calls.length > 0 ? "call_tool" : END;
+      }
+    )
+    .addEdge("call_tool", "respond")
+    .setEntryPoint("think");
+
+  // 编译图
+  const agent = graph.compile();
+
+  return { agent, memory };
+};
+
+/**
+ * 交互式模式：用户可以输入问题
+ */
+const runInteractive = async () => {
+  console.log('=== 交互式 Agent 模式（带深度思考功能）===');
+  console.log('你是一个智能助手，具有读取文件、网络搜索和深度思考的能力。');
+  console.log('你的对话历史将被保存到文件中，下次启动时可以恢复。');
+  
+  const { agent, memory } = await createLangGraphAgent();
+  
+  // 测试记忆功能的对话序列
+  const testConversations = [
+    '请查看 package.json 文件，告诉我项目的名称是什么。',
+    '请告诉我项目的主要依赖有哪些？',
+    '什么是 langGraph？'
+  ];
+  
+  // 保存完整的对话历史
+  let fullChatHistory: any[] = [];
+  
+  for (const question of testConversations) {
+    console.log('\n用户：', question);
+    
+    try {
+      // 清除之前的工具结果
+      let state: any = { 
+        input: question, 
+        chat_history: fullChatHistory,
+        tool_result: undefined
+      };
+      
+      // 执行图
+      const result = await agent.invoke(state);
+      
+      console.log('\n思考过程：');
+      console.log(result.thinking);
+      
+      console.log('\nAgent 回答：');
+      console.log(result.answer);
+      
+      // 更新完整对话历史
+      fullChatHistory.push({ role: 'user', content: question });
+      fullChatHistory.push({ role: 'assistant', content: result.answer });
+      
+      // 更新记忆
+      await memory.saveContext(
+        { input: question },
+        { output: result.answer }
+      );
+    } catch (error) {
+      console.error('执行错误：', error);
+      // 打印详细的错误堆栈
+      console.error('错误堆栈：', (error as Error).stack);
+    }
+  }
+};
+
+/**
+ * 主函数：运行示例或交互式模式
+ */
+const main = async () => {
+  // 运行交互式模式
+  await runInteractive();
+};
+
+// 执行主函数
+main().catch(error => {
+  console.error('程序执行错误：', error);
+  process.exit(1);
+});

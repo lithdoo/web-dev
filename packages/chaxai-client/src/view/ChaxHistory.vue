@@ -22,7 +22,7 @@
     </div>
     <div class="chax-history__list">
       <div
-        v-for="item in list"
+        v-for="item in list.reverse()"
         :key="item.conversationId"
         class="chax-history__item"
         :class="{ 'chax-history__item--active': item.conversationId === active }"

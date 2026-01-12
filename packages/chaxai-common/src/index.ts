@@ -7,9 +7,9 @@
  * DeepSeek 消息基础结构
  * 定义消息的角色和内容
  */
-export interface DeepSeekMessage {
+export interface IMessage {
     /** 消息发送者角色 - user: 用户发送, assistant: AI 回复, system: 系统提示 */
-    role: 'user' | 'assistant' | 'system';
+    role: 'user' | 'assistant' | 'system' | 'tool';
     /** 消息文本内容 */
     content: string;
 }
@@ -29,11 +29,11 @@ export interface IChaxStreamChunk {
  * 聊天消息结构
  * 表示单条聊天消息的完整信息
  */
-export interface IChaxMessage {
+export interface IChaxMessageInfo {
     /** 消息唯一标识符 */
     msgId: string;
     /** 消息角色，继承 DeepSeekMessage 的角色类型 */
-    role: DeepSeekMessage['role'];
+    role: IMessage['role'];
     /** 消息是否在客户端显示 */
     visiableInClient: boolean;
     /** 消息是否未完成（流式传输时可能用到） */
@@ -65,7 +65,7 @@ export interface IChaxClient {
     /** 获取所有聊天会话列表 */
     fetchChatConversations(): Promise<IChaxConversation[]>;
     /** 获取指定会话的消息列表 */
-    fetchChatMessages(conversationId: string): Promise<IChaxMessage[]>;
+    fetchChatMessages(conversationId: string): Promise<IChaxMessageInfo[]>;
     /** 发送聊天消息，可指定会话 ID，不指定则创建新会话 */
     sendChatMessage(message: string, conversationId?: string): Promise<IChaxConversation>;
     /** 获取单条消息的完整内容 */
@@ -79,7 +79,7 @@ export interface IChaxHistroyService {
     /** 处理获取所有聊天会话列表的请求 */
     onFetchChatConversations(): Promise<IChaxConversation[]>;
     /** 处理获取指定会话消息列表的请求 */
-    onFetchChatMessages(conversationId: string): Promise<IChaxMessage[]>;
+    onFetchChatMessages(conversationId: string): Promise<IChaxMessageInfo[]>;
     /** 处理获取单条消息内容的请求 */
     onFetchContentMessage(msgId: string): Promise<{ content: string, error: string }>;
 }

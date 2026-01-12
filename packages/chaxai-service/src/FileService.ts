@@ -1,4 +1,4 @@
-import { IChaxService, IChaxConversation, IChaxMessage, IChaxStreamChunk, IChaxConversationManagerBuilder } from "@chaxai-common";
+import { IChaxService, IChaxConversation, IChaxMessageInfo, IChaxStreamChunk, IChaxConversationManagerBuilder } from "@chaxai-common";
 import path from "path";
 import * as fs from "fs";
 import { v4 as uuidv4 } from 'uuid';
@@ -136,7 +136,7 @@ export abstract class ChaxFileService implements IChaxService {
      * @param conversationId 会话ID
      * @returns 消息列表
      */
-    async onFetchChatMessages(conversationId: string): Promise<IChaxMessage[]> {
+    async onFetchChatMessages(conversationId: string): Promise<IChaxMessageInfo[]> {
         const messageListPath = this.getConversationMessageListJsonPath(conversationId);
         try {
             const content = fs.readFileSync(messageListPath, 'utf-8');
@@ -254,7 +254,7 @@ export abstract class ChaxFileService implements IChaxService {
      * @param message 要更新/添加的消息对象
      * @param data 可选的数据（content/chunk/error）
      */
-    updateConversationMessageList(conversation: IChaxConversation, message: IChaxMessage, data: {
+    updateConversationMessageList(conversation: IChaxConversation, message: IChaxMessageInfo, data: {
         chunk?: string,
         content?: string,
         error?: string,
@@ -279,7 +279,7 @@ export abstract class ChaxFileService implements IChaxService {
         }
         const content = fs.readFileSync(messageListPath, 'utf-8');
         let messages = JSON.parse(content);
-        messages = messages.filter((msg: IChaxMessage) => msg.msgId !== message.msgId);
+        messages = messages.filter((msg: IChaxMessageInfo) => msg.msgId !== message.msgId);
         messages.push(message);
         fs.writeFileSync(messageListPath, JSON.stringify(messages, null, 2), 'utf-8');
         if (typeof data.content === 'string') {
@@ -322,7 +322,7 @@ export abstract class ChaxFileService implements IChaxService {
         try {
             const content = fs.readFileSync(messageListPath, 'utf-8');
             const messages = JSON.parse(content);
-            return !messages.find((msg: IChaxMessage) => this.respondChunkCallMap.has(msg.msgId));
+            return !messages.find((msg: IChaxMessageInfo) => this.respondChunkCallMap.has(msg.msgId));
         } catch (error) {
             return false;
         }
@@ -385,7 +385,7 @@ export abstract class ChaxFileService implements IChaxService {
                 throw new Error('Conversation is not finished');
             }
         }
-        const userMessage: IChaxMessage = {
+        const userMessage: IChaxMessageInfo = {
             msgId: uuidv4(),
             role: 'user',
             unfinished: false,
@@ -397,7 +397,7 @@ export abstract class ChaxFileService implements IChaxService {
         });
 
 
-        const aiUnfinishedMessage: IChaxMessage = {
+        const aiUnfinishedMessage: IChaxMessageInfo = {
             msgId: uuidv4(),
             role: 'assistant',
             unfinished: true,
@@ -431,7 +431,7 @@ export abstract class ChaxFileService implements IChaxService {
              */
             const finish = () => {
                 this.respondChunkCallMap.delete(aiUnfinishedMessage.msgId);
-                const aiFinishedMessage: IChaxMessage = {
+                const aiFinishedMessage: IChaxMessageInfo = {
                     msgId: aiUnfinishedMessage.msgId,
                     role: 'assistant',
                     unfinished: false,

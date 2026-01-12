@@ -1,6 +1,6 @@
 import type { IRecChax } from '@/view/interface'
 import { ChatControl, IChaxReq } from '@/ChatControl'
-import type { IChaxMessage, IChaxConversation } from "@chaxai-common"
+import type { IChaxMessageInfo, IChaxConversation } from "@chaxai-common"
 import { RecChax } from '@/view/fromChax'
 import { Ref, ref, computed } from 'vue'
 
@@ -16,7 +16,7 @@ class ChaxReq implements IChaxReq {
     return response.json()
   }
 
-  async fetchAllMessage(conversationId: string): Promise<IChaxMessage[]> {
+  async fetchAllMessage(conversationId: string): Promise<IChaxMessageInfo[]> {
     const response = await fetch(`${this.baseUrl}/message/list/${conversationId}`)
     if (!response.ok) {
       throw new Error('Failed to fetch messages')

@@ -1,11 +1,11 @@
-import type { IChaxMessage, IChaxConversation } from "@chaxai-common"
+import type { IChaxMessageInfo, IChaxConversation } from "@chaxai-common"
 import { defaultRenderer, defaultRendererKeyType, type MarkdownNodeRenderer, type MarkdownNodeRenderKeyType } from "./ASTNode/render"
 import { TabControl } from "./TabControl"
 
 
 export interface IChaxReq<T = any> {
     fetchAllConversation(): Promise<IChaxConversation[]>
-    fetchAllMessage(conversationId: string): Promise<IChaxMessage[]>
+    fetchAllMessage(conversationId: string): Promise<IChaxMessageInfo[]>
     fetchContent(msgId: string): Promise<{ content: string, error?: string }>
     send(input: {
         conversationId?: string
@@ -22,7 +22,7 @@ export class ChaxReq<T = any> implements IChaxReq<T> {
         return await res.json()
     }
 
-    async fetchAllMessage(conversationId: string): Promise<IChaxMessage[]> {
+    async fetchAllMessage(conversationId: string): Promise<IChaxMessageInfo[]> {
         const res = await fetch(`/ai/message/list/${conversationId}`)
         return await res.json()
     }
@@ -124,7 +124,7 @@ export class SSEMessage {
 }
 
 export class MsgBox {
-    msgList: { [key: string]: IChaxMessage[] } = {}
+    msgList: { [key: string]: IChaxMessageInfo[] } = {}
     msgContent: {
         [key: string]: {
             content: string,

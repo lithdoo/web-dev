@@ -25,9 +25,11 @@
     "paths": {
       "@/*": ["./src/*"],
       "@chaxai-common": ["../chaxai-common/src/index"],
-      "@chaxai-common/*": ["../chaxai-common/src/*"]
+      "@chaxai-common/*": ["../chaxai-common/src/*"],
+      "@chaxai-agent": ["../chaxai-agent/src/index"],
+      "@chaxai-agent/*": ["../chaxai-agent/src/*"]
     }
   },
-  "include": ["src", "../chaxai-common/src","test"],
+  "include": ["src", "../chaxai-common/src", "../chaxai-agent/src","test", "example"],
   "exclude": ["node_modules", "dist"]
 }

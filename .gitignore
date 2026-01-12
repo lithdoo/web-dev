@@ -25,3 +25,4 @@ dist-ssr
 
 # Chaxai service data
 packages/chaxai-service/.chaxai_data/
+/packages/chaxai-service/.agent_memory
