@@ -1,0 +1,46 @@
+{
+  "name": "chaxai-agent",
+  "version": "1.0.0",
+  "description": "Chaxai agent layer",
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "tsx example/core.ts"
+  },
+  "keywords": [
+    "agent",
+    "chaxai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/koa": "^2.13.0",
+    "@types/koa__router": "^12.0.0",
+    "@types/koa-bodyparser": "^4.3.13",
+    "@types/koa2-cors": "^2.0.6",
+    "@types/node": "^20.10.0",
+    "koa-bodyparser": "^4.4.1",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vite-tsconfig-paths": "^6.0.3",
+    "vitest": "^1.0.0"
+  },
+  "dependencies": {
+    "@langchain/community": "^1.1.2",
+    "@langchain/core": "^1.1.11",
+    "@langchain/deepseek": "^1.0.4",
+    "@langchain/langgraph": "^1.0.7",
+    "@langchain/openai": "^1.2.1",
+    "duck-duck-scrape": "^2.2.7",
+    "koa": "^2.15.0",
+    "koa2-cors": "^2.0.6",
+    "uuid": "^11.0.0"
+  }
+}
