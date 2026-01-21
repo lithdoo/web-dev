@@ -57,7 +57,8 @@ export interface SystemMessageInAgent extends IMessage {
 export type AgentMessage =
     | AIMessageInAgent
     | UserMessageInAgent
-    | SystemMessageInAgent;
+    | SystemMessageInAgent
+    | ToolMessage;
 
 /**
  * Agent 执行状态

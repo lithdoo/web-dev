@@ -21,7 +21,7 @@ export interface Graph {
 }
 
 export interface ExecuteNode<State> extends Node {
-    run: (state: State) => Promise<State>;
+    execute: (state: State) => Promise<State>;
     snapshot?: (state: State) => unknown;
 }
 export interface ExecuteEdge<Condition> extends Edge {
