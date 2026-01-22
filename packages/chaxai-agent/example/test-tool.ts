@@ -1,26 +1,34 @@
-import { createDeepseekLLM } from "../src/deepseek";
-import { readFileTool, readFile } from "../src/tool";
+import { createSearchTool, searchSearxng } from './tools';
 
-(async () => {
-    try {
-        const llm = createDeepseekLLM();
-        llm.bindTools([readFileTool]);
-        llm.registerToolHandler("read_file", (args) => {
-            return readFile(args.path);
-        });
+const args = process.argv.slice(2);
+const query = args.join(' ') || '人工智能最新发展';
 
-        llm.setMessages([
-            { role: "user", content: "请读取文件 C:\\Users\\lithd\\Documents\\trae_projects\\webc-file-view\\packages\\chaxai-service\\example\\diy-agent\\interface.ts 的内容" }
-        ]);
+if (query === '--help' || query === '-h') {
+    console.log('用法: bun run test-tool.ts <搜索关键词>');
+    console.log('示例: bun run test-tool.ts 人工智能最新发展');
+    process.exit(0);
+}
 
-        console.log("=== 测试文件读取工具 ===\n");
-        const result = await llm.steam((chunk) => {
-            if (chunk.type === 'chunk') {
-                process.stdout.write(chunk.content);
-            }
-        });
-        console.log("\n最终结果:", result);
-    } catch (error) {
-        console.error("错误:", error);
-    }
-})();
+async function main() {
+    console.log('='.repeat(60));
+    console.log('SearXNG 搜索测试');
+    console.log('='.repeat(60));
+    console.log(`搜索关键词: ${query}`);
+    console.log('-'.repeat(60));
+
+    const searchTool = createSearchTool({
+        timeout: 30000,
+    });
+
+    const startTime = Date.now();
+    const result = await searchTool.call({ query });
+    const elapsed = Date.now() - startTime;
+
+    console.log(`耗时: ${elapsed}ms`);
+    console.log('-'.repeat(60));
+    console.log('搜索结果:');
+    console.log(result);
+    console.log('='.repeat(60));
+}
+
+main().catch(console.error);

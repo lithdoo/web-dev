@@ -24,7 +24,7 @@ export interface IAgxntTool {
             parameters: Record<string, any>
         }
     },
-    call: (args: Record<string, any>) => Promise<string>
+    call: (args: any) => Promise<string>
 }
 
 

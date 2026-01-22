@@ -228,7 +228,7 @@ class AgentCore {
                             // 第一次发送时包含完整的格式
                             sendChunk({
                                 type: 'chunk',
-                                content: `\n\`\`\`lang=thinking\n${chunkContent}`
+                                content: `\n\`\`\`thinking\n${chunkContent}`
                             });
                             firstChunk = false;
                         } else {
@@ -251,7 +251,7 @@ class AgentCore {
 
 
                 return {
-                    thinking: `\`\`\`lang=thinking\n${thinkingContent}\n\`\`\``
+                    thinking: `\`\`\`thinking\n${thinkingContent}\n\`\`\``
                 } as any;
             } else {
                 // 非流式调用LLM（兼容旧代码）
@@ -272,7 +272,7 @@ class AgentCore {
                 });
                 const resultContent = typeof result.content === 'string' ? result.content : JSON.stringify(result.content);
                 return {
-                    thinking: `\`\`\`lang=thinking\n${resultContent}\n\`\`\``
+                    thinking: `\`\`\`thinking\n${resultContent}\n\`\`\``
                 } as any;
             }
         };
@@ -694,7 +694,7 @@ async function startServer() {
     app.use(bodyParser());
 
     // 设置服务端口
-    const port = 3000;
+    const port = process.env.SERVER_PORT ? parseInt(process.env.SERVER_PORT, 10) : 3000;
 
     // 创建 ChatCore 实例
     const chatCore = new ChatCore();
@@ -756,10 +756,10 @@ runExample().catch(error => {
 });
 
 // 导出函数供其他模块使用
-export {
-    ChatCore,
-    ReadFileTool,
-    AgentCore,
-    initializeDeepSeek,
-    startServer
-};
+// export {
+//     ChatCore,
+//     ReadFileTool,
+//     AgentCore,
+//     initializeDeepSeek,
+//     startServer
+// };

@@ -201,7 +201,7 @@ class AgentCore {
                         // 第一次发送时包含完整的格式
                         sendChunk({
                             type: 'chunk',
-                            content: `\n\`\`\`lang=thinking\n${chunkContent}`
+                            content: `\n\`\`\`thinking\n${chunkContent}`
                         });
                         firstChunk = false;
                     } else {
@@ -223,7 +223,7 @@ class AgentCore {
 
 
                 return {
-                    thinking: `\`\`\`lang=thinking\n${thinkingContent}\n\`\`\``
+                    thinking: `\`\`\`thinking\n${thinkingContent}\n\`\`\``
                 } as any;
             } else {
                 // 非流式调用LLM（兼容旧代码）
@@ -232,7 +232,7 @@ class AgentCore {
                     chat_history: state.chat_history
                 });
                 return {
-                    thinking: `\`\`\`lang=thinking\n${result.content}\n\`\`\``
+                    thinking: `\`\`\`thinking\n${result.content}\n\`\`\``
                 } as any;
             }
         };
