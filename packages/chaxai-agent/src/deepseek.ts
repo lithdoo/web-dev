@@ -153,7 +153,6 @@ export class DeepseekLLM implements IAgxntLLM {
 
         for await (const chunk of callDeepseekStream(this.messages, this.tools)) {
             if (chunk.done) {
-                onChunk({ type: 'done', content: '' });
                 break;
             }
 
@@ -205,7 +204,6 @@ export class DeepseekLLM implements IAgxntLLM {
 
             for await (const chunk of callDeepseekStream(this.messages, this.tools)) {
                 if (chunk.done) {
-                    onChunk({ type: 'done', content: '' });
                     break;
                 }
 

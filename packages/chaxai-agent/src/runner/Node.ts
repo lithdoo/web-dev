@@ -53,8 +53,6 @@ export class LLMAgentNode implements AgentNode {
             messages.push({ role: 'system', content: this.systemPrompt });
         }
 
-
-        console.log('context', state.context);
         for (const msg of state.context) {
             messages.push({
                 role: msg.role,
@@ -86,6 +84,7 @@ const DEFAULT_DEEP_THINK_PROMPT = `## 角色
 3. 提供结构化的推理过程，展示思考的逻辑链条
 4. 在给出结论前，考虑可能的反例和边界情况
 5. 保持客观中立，避免先入为主的判断
+6. 不要直接回答问题，仅仅只是对问题的分析和归纳
 
 ## 输出格式
 请直接输出你的思考内容，不要包含任何代码块标记（如 \`\`\`thinking 或 \`\`\`）。`;

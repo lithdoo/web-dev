@@ -1,56 +1,26 @@
+import Koa from 'koa';
+import bodyParser from 'koa-bodyparser';
+import cors from 'koa2-cors';
 import { GraphAgent, AgentExState, AgentExecutionContext } from '../src/graph-agant';
 import { LLMGraphRouter } from '../src/runner/Router';
 import { createDeepThinkNode, createLLMAgentNode, createLLMToolNode, createNowadaysNode } from '../src/runner/Node';
 import { DeepseekLLM } from '../src/deepseek';
 import { ExecutionContext, ExecutionResult, ExecutionStatus, NodeExecutionRecord } from '../src/graph-base';
-import { IAgxntTool } from '../src/interface';
+import { createSearchTool } from './tools';
+import { CoreChaxKoaMiddleWare, IChaxCore } from '../../chaxai-service/src/CoreBuilder';
+import { IChaxStreamChunk, IMessage } from '@chaxai-common';
+import { ChatDeepSeek } from '@langchain/deepseek';
 
-const SEARXNG_BASE_URL = process.env.SEARXNG_BASE_URL || 'https://opnxng.com';
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+const SEARXNG_BASE_URL = process.env.SEARXNG_BASE_URL || 'http://localhost:8080';
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-5069284b93a7481db08a15f65628906a';
 
-async function searxngSearch(query: string): Promise<string> {
-    const url = new URL('/search', SEARXNG_BASE_URL);
-    url.searchParams.set('q', query);
-    url.searchParams.set('format', 'json');
-    url.searchParams.set('categories', 'general');
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-    try {
-        const response = await fetch(url.toString(), {
-            signal: controller.signal,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
-        });
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            return `搜索失败: HTTP ${response.status}`;
-        }
-
-        const data = await response.json() as { results?: Array<{ title?: string; url?: string; content?: string }> };
-
-        if (!data.results || data.results.length === 0) {
-            return `没有找到关于 "${query}" 的搜索结果`;
-        }
-
-        const topResults = data.results.slice(0, 5);
-        return topResults
-            .map(r => {
-                const title = r.title || '无标题';
-                const url = r.url || '';
-                const content = r.content || '';
-                return `[${title}](${url})\n${content}`;
-            })
-            .join('\n\n');
-    } catch (error) {
-        clearTimeout(timeoutId);
-        if (error instanceof Error && error.name === 'AbortError') {
-            return '搜索超时，请稍后再试';
-        }
-        return `搜索失败: ${error instanceof Error ? error.message : '未知错误'}`;
-    }
+function createLLM(): ChatDeepSeek {
+    return new ChatDeepSeek({
+        model: 'deepseek-chat',
+        apiKey: DEEPSEEK_API_KEY,
+        temperature: 0.7,
+    });
 }
 
 const llm = new DeepseekLLM();
@@ -60,29 +30,10 @@ const nowadaysNode = createNowadaysNode({
     label: '获取时间',
 });
 
-const searchTool: IAgxntTool = {
-    info: {
-        type: 'function',
-        function: {
-            name: 'search',
-            description: '搜索互联网获取信息',
-            parameters: {
-                type: 'object',
-                properties: {
-                    query: {
-                        type: 'string',
-                        description: '搜索关键词',
-                    },
-                },
-                required: ['query'],
-            },
-        },
-    },
-    async call(args: { query: string }) {
-        console.log('搜索关键字：', args.query);
-        return searxngSearch(args.query);
-    },
-};
+const searchTool = createSearchTool({
+    baseUrl: SEARXNG_BASE_URL,
+    timeout: 60000,
+});
 
 const searchNode = createLLMToolNode({
     name: 'search',
@@ -204,15 +155,11 @@ const graph: GraphAgent = {
             clearToolCalls: () => { },
         };
 
-
-
         const run = async () => {
             const router = new LLMGraphRouter(this);
             let currentNodeKey = entry;
             let iterations = 0;
             const maxIterations = 10;
-
-            const sendChunk = initialState.sendChunk;
 
             while (iterations < maxIterations) {
                 iterations++;
@@ -251,28 +198,86 @@ const graph: GraphAgent = {
     config: undefined as any
 };
 
-async function main() {
-    const question = process.argv[2] || '2026年国内第一次全国范围的大降温影响范围多大，持续多久';
+class GraphChatCore implements IChaxCore {
+    onChat(llm: ChatDeepSeek, history: IMessage[], sendChunk: (chunk: IChaxStreamChunk) => void): void {
+        const lastMessage = history[history.length - 1];
+        const currentInput = lastMessage?.role === 'user' ? lastMessage.content : '';
 
-    const state: AgentExState = {
-        history: [],
-        context: [{ role: 'user', content: question }] as any,
-        sendChunk: (chunk) => {
-            process.stdout.write(chunk.content || '');
-            return Promise.resolve();
-        },
-    };
+        const state: AgentExState = {
+            history: history.slice(0, -1) as any || [],
+            context: [{ role: 'user', content: currentInput }] as any,
+            sendChunk: (chunk) => {
+                process.stdout.write(chunk.content);
+                if(chunk.type !== 'chunk') {
+                    console.log('\n非 chunk 类型:', chunk.type + '\n');
+                }
+                sendChunk(chunk);
+                return Promise.resolve();
+            },
+        };
 
-    console.log('\n' + '='.repeat(60));
-    console.log(`问题: ${question}`);
-    console.log('='.repeat(60) + '\n');
+        this.handleGraphResponse(state, sendChunk);
+    }
 
-    const { result } = await graph.execute('nowadays', state);
-    const { finalState } = await result;
+    private async handleGraphResponse(
+        state: AgentExState,
+        sendChunk: (chunk: IChaxStreamChunk) => void
+    ): Promise<void> {
+        try {
+            const { result } = await graph.execute('nowadays', state);
+            await result;
 
-    console.log('\n' + '='.repeat(60));
-    console.log('执行完成');
-    console.log('='.repeat(60));
+            sendChunk({
+                type: 'done',
+                content: ''
+            });
+        } catch (error) {
+            console.error('Graph 执行错误:', error);
+            sendChunk({
+                type: 'error',
+                content: error instanceof Error ? error.message : '未知错误'
+            });
+        }
+    }
 }
 
-main().catch(console.error);
+async function startServer() {
+    console.log('=== 启动 GraphAgent Service ===');
+    console.log(`SearXNG: ${SEARXNG_BASE_URL}`);
+
+    const app = new Koa();
+    app.use(cors());
+    app.use(bodyParser());
+
+    const chatCore = new GraphChatCore();
+
+    const middleware = new CoreChaxKoaMiddleWare(
+        chatCore,
+        createLLM
+    );
+
+    app.use(middleware.createMiddleware());
+
+    app.listen(PORT, () => {
+        console.log('');
+        console.log('='.repeat(60));
+        console.log(`GraphAgent Service 已启动`);
+        console.log('='.repeat(60));
+        console.log(`监听端口: ${PORT}`);
+        console.log(`SearXNG: ${SEARXNG_BASE_URL}`);
+        console.log('');
+        console.log('API 端点:');
+        console.log('- GET  /health              - 健康检查');
+        console.log('- POST /ai/chat             - 发送消息');
+        console.log('- GET  /ai/record/list      - 获取会话列表');
+        console.log('- GET  /ai/message/list/:id - 获取会话消息');
+        console.log('');
+        console.log('请求示例:');
+        console.log(`curl -X POST http://localhost:${PORT}/ai/chat \\`);
+        console.log(`  -H "Content-Type: application/json" \\`);
+        console.log(`  -d '{"message": "你的问题", "recordId": "会话ID"}'`);
+        console.log('='.repeat(60));
+    });
+}
+
+startServer().catch(console.error);

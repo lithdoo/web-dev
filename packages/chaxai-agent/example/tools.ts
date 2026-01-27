@@ -1,43 +1,22 @@
 import { IAgxntTool } from '../src/interface';
 
 export interface SearchConfig {
+    baseUrl?: string;
     timeout?: number;
 }
 
-export interface SearchResult {
-    title: string;
-    url: string;
-    snippet: string;
+export interface SearxngResponse {
+    results?: Array<{
+        title?: string;
+        url?: string;
+        content?: string;
+    }>;
 }
 
-export async function parseSearxngHtml(html: string): Promise<SearchResult[]> {
-    const results: SearchResult[] = [];
-    const resultRegex = /<div class="[^"]*result[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<div class="[^"]*[^"]*"/g;
-    const titleRegex = /<a[^>]+class="[^"]*title[^"]*"[^>]*>([^<]+)<\/a>/;
-    const urlRegex = /<a[^>]+class="[^"]*title[^"]*"[^>]+href="([^"]+)"/;
-    const snippetRegex = /<p[^>]*class="[^"]*snippet[^"]*"[^>]*>([^<]+)<\/p>/;
+export async function searchSearxng(query: string, baseUrl: string = 'http://localhost:8080', timeout: number = 30000): Promise<string> {
+    const searchUrl = `${baseUrl}/?q=${encodeURIComponent(query)}&format=json`;
 
-    let match;
-    while ((match = resultRegex.exec(html)) !== null) {
-        const resultHtml = match[1];
-        const titleMatch = resultHtml.match(titleRegex);
-        const urlMatch = resultHtml.match(urlRegex);
-        const snippetMatch = resultHtml.match(snippetRegex);
-
-        if (titleMatch && urlMatch) {
-            results.push({
-                title: titleMatch[1].replace(/<[^>]+>/g, '').trim(),
-                url: urlMatch[1],
-                snippet: snippetMatch ? snippetMatch[1].replace(/<[^>]+>/g, '').trim() : '',
-            });
-        }
-    }
-
-    return results;
-}
-
-export async function searchSearxng(query: string, baseUrl: string = 'https://opnxng.com', timeout: number = 30000): Promise<string> {
-    const searchUrl = `${baseUrl}/?q=${encodeURIComponent(query)}`;
+    console.log('[Search] 请求 URL:', searchUrl);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -47,8 +26,7 @@ export async function searchSearxng(query: string, baseUrl: string = 'https://op
             signal: controller.signal,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html, */*',
-                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept': 'application/json',
             },
         });
         clearTimeout(timeoutId);
@@ -57,23 +35,15 @@ export async function searchSearxng(query: string, baseUrl: string = 'https://op
             return `搜索失败: HTTP ${response.status}`;
         }
 
-        const html = await response.text();
+        const data = await response.json() as SearxngResponse;
 
-        console.log('\n' + '='.repeat(60));
-        console.log('SearXNG HTML Response:');
-        console.log('='.repeat(60));
-        console.log(html);
-        console.log('='.repeat(60) + '\n');
-
-        const results = await parseSearxngHtml(html);
-
-        if (results.length === 0) {
+        if (!data.results || data.results.length === 0) {
             return `没有找到关于 "${query}" 的搜索结果`;
         }
 
-        return results
+        return data.results
             .slice(0, 5)
-            .map(r => `[${r.title}](${r.url})\n${r.snippet}`)
+            .map(r => `[${r.title || '无标题'}](${r.url || ''})\n${r.content || ''}`)
             .join('\n\n');
     } catch (error) {
         clearTimeout(timeoutId);
@@ -85,6 +55,7 @@ export async function searchSearxng(query: string, baseUrl: string = 'https://op
 }
 
 export function createSearchTool(config: SearchConfig = {}): IAgxntTool {
+    const baseUrl = config.baseUrl || 'http://localhost:8000';
     const timeout = config.timeout || 30000;
 
     return {
@@ -92,7 +63,7 @@ export function createSearchTool(config: SearchConfig = {}): IAgxntTool {
             type: 'function',
             function: {
                 name: 'search',
-                description: '通过搜索引擎搜索互联网获取信息',
+                description: '通过 SearXNG 搜索引擎搜索互联网获取信息',
                 parameters: {
                     type: 'object',
                     properties: {
@@ -107,7 +78,7 @@ export function createSearchTool(config: SearchConfig = {}): IAgxntTool {
         },
         async call(args: { query: string }) {
             console.log('[Search] 搜索关键词:', args.query);
-            const result = await searchSearxng(args.query, 'https://opnxng.com', timeout);
+            const result = await searchSearxng(args.query, baseUrl, timeout);
             console.log('[Search] 搜索结果长度:', result.length);
             return result;
         },
