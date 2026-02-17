@@ -142,7 +142,7 @@ export class DeepseekLLM implements IAgxntLLM {
         this.toolHandlers.set(name, handler);
     }
 
-    async send(onChunk: (chunk: IChaxStreamChunk) => void): Promise<IAgxntLLMResponse> {
+    async send(onChunk?: (chunk: IChaxStreamChunk) => void): Promise<IAgxntLLMResponse> {
         if (this.messages.length === 0) {
             throw new Error("请先调用 setMessages 设置消息");
         }
@@ -158,7 +158,7 @@ export class DeepseekLLM implements IAgxntLLM {
 
             if (chunk.content) {
                 accumulatedContent += chunk.content;
-                onChunk({ type: 'chunk', content: chunk.content });
+                onChunk?.({ type: 'chunk', content: chunk.content });
             }
 
             if (chunk.tool_calls) {
@@ -192,7 +192,7 @@ export class DeepseekLLM implements IAgxntLLM {
         return response;
     }
 
-    async steam(onChunk: (chunk: IChaxStreamChunk) => void): Promise<{ content?: string }> {
+    async steam(onChunk?: (chunk: IChaxStreamChunk) => void): Promise<{ content?: string }> {
         if (this.messages.length === 0) {
             throw new Error("请先调用 setMessages 设置消息");
         }
@@ -209,7 +209,7 @@ export class DeepseekLLM implements IAgxntLLM {
 
                 if (chunk.content) {
                     accumulatedContent += chunk.content;
-                    onChunk({ type: 'chunk', content: chunk.content });
+                    onChunk?.({ type: 'chunk', content: chunk.content });
                 }
 
                 if (chunk.tool_calls) {
@@ -259,7 +259,7 @@ export class DeepseekLLM implements IAgxntLLM {
                         content: result,
                     });
 
-                    onChunk({ type: 'chunk', content: `\n[Tool Result] ${result}\n` });
+                    onChunk?.({ type: 'chunk', content: `\n[Tool Result] ${result}\n` });
                 }
 
                 continue;

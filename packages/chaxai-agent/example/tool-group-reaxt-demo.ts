@@ -3,13 +3,15 @@ import bodyParser from 'koa-bodyparser';
 import cors from 'koa2-cors';
 import { GraphAgent, AgentExState, AgentExecutionContext } from '../src/graph-agant';
 import { LLMGraphRouter } from '../src/runner/Router';
-import { createDeepThinkNode, createLLMAgentNode, createLLMToolNode, createNowadaysNode } from '../src/runner/Node';
 import { DeepseekLLM } from '../src/deepseek';
 import { ExecutionContext, ExecutionResult, ExecutionStatus, NodeExecutionRecord } from '../src/graph-base';
-import { createSearchTool } from './tools';
+import { createReadDirectoryTool, createReadFileTool, createSearchTool } from '../src/tools';
 import { CoreChaxKoaMiddleWare, IChaxCore } from '../../chaxai-service/src/CoreBuilder';
 import { IChaxStreamChunk, IMessage } from '@chaxai-common';
 import { ChatDeepSeek } from '@langchain/deepseek';
+import { BaseLLMNode, DeepThinkNode, NativeToolGroupNode, NativeToolNode, NativeToolReActNode, NowadaysNode } from '@/nodes';
+
+
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const SEARXNG_BASE_URL = process.env.SEARXNG_BASE_URL || 'http://localhost:8080';
@@ -25,9 +27,9 @@ function createLLM(): ChatDeepSeek {
 
 const llm = new DeepseekLLM();
 
-const nowadaysNode = createNowadaysNode({
+const nowadaysNode = NowadaysNode.create({
     name: 'nowadays',
-    label: '获取时间',
+    label: '获取时间，环境，位置等信息',
 });
 
 const searchTool = createSearchTool({
@@ -35,26 +37,49 @@ const searchTool = createSearchTool({
     timeout: 60000,
 });
 
-const searchNode = createLLMToolNode({
-    name: 'search',
-    label: '搜索信息',
-    tool: searchTool,
-    conditionPrompt: '判断当前回答是否需要搜索额外信息来增强回答质量',
-    callPrompt: '根据上下文生成搜索查询词',
-    llm,
+const readFileTool = createReadFileTool({
+    encoding: 'utf-8',
+    maxFileSize: 1024 * 1024,
+})
+
+const readDirTool = createReadDirectoryTool({
+    includeDetails: true,
+})
+
+
+const toolReaxtNode = NativeToolReActNode.create({
+    name: 'tools',
+    label: '工具组',
+    tools: [searchTool, readFileTool, readDirTool],
+    observePrompt: (tools) => {
+        const toolList = tools.map(t => 
+            `- ${t.info.function.name}: ${t.info.function.description}`
+        ).join('\n');
+        return `你是一个工具助手，请根据用户需求选择合适的工具。
+
+## 可用工具
+${toolList}
+
+## 规则
+1. 仔细阅读用户需求，选择最合适的工具
+2. 如果不需要调用工具，返回空字符串
+3. 确保参数正确`;
+    },
+    llmCall: llm,
 });
 
-const thinkNode = createDeepThinkNode({
+const thinkNode = DeepThinkNode.create({
     name: 'think',
     label: '深度思考',
     systemPrompt: `## 角色
-你是深度思考助手，负责对问题进行深入、全面、严谨的分析。
+你是深度思考助手，负责对问题进行深入、全面、严谨的分析。拆解用户问题，识别问题的核心需求和相关因素。
+并整理回答的步骤，确保回答的逻辑清晰、结构合理。
 
 ## 执行流程
-1. nowadays: 获取当前时间信息
-2. think: 对用户问题进行深度思考分析
-3. answer: 根据思考结果生成回答
-4. search: (可选) 如需额外信息则搜索
+1. nowadays: 获取当前时间信息 （跳转 think 节点）
+2. think: 对用户问题进行深度思考分析（当前节点，可跳转到 tools 节点或者 answer 节点）
+3. tools: 调用工具（包含以下工具,${toolReaxtNode['tools'].map(t => `${t.info.function.name}:${t.info.function.description})`).join(',')}）(可反复调用，调用完成后跳转 answer 节点)
+3. answer: 根据思考结果生成回答（跳转 review 节点）
 5. review: 评估回答质量，必要时改进
 
 ## 任务要求
@@ -64,14 +89,13 @@ const thinkNode = createDeepThinkNode({
 4. 在给出结论前，考虑可能的反例和边界情况
 5. 保持客观中立，避免先入为主的判断
 6. 特别关注问题中的时间信息（如"2026年"），结合当前时间进行判断
-7. 如果需要搜索信息，之后会存在搜索的节点，需要分析整理搜索的关键字，确保搜索的内容与问题相关
-
 ## 输出格式
 请直接输出你的思考内容，不要包含任何代码块标记（如 \`\`\`thinking 或 \`\`\`）。`,
     llm,
 });
 
-const answerNode = createLLMAgentNode({
+
+const answerNode = BaseLLMNode.create({
     name: 'answer',
     label: '生成回答',
     systemPrompt: `## 角色
@@ -87,7 +111,7 @@ const answerNode = createLLMAgentNode({
     llm,
 });
 
-const reviewNode = createLLMAgentNode({
+const reviewNode = BaseLLMNode.create({
     name: 'review',
     label: '评价回答',
     systemPrompt: `## 角色
@@ -115,23 +139,23 @@ const reviewNode = createLLMAgentNode({
     llm,
 });
 
-const graph: GraphAgent = {
+const toolsGraph : GraphAgent = {
     entries: ['nowadays'],
     endPoints: ['review'],
     nodes: [
         { node: nowadaysNode, keyname: 'nowadays' },
         { node: thinkNode, keyname: 'think' },
         { node: answerNode, keyname: 'answer' },
-        { node: searchNode, keyname: 'search' },
+        { node: toolReaxtNode, keyname: 'tools' },
         { node: reviewNode, keyname: 'review' },
     ],
     edges: [
         { sourceKey: 'nowadays', targetKey: 'think', label: '获取时间' },
         { sourceKey: 'think', targetKey: 'answer', label: '直接回答' },
-        { sourceKey: 'think', targetKey: 'search', label: '需要搜索' },
+        { sourceKey: 'think', targetKey: 'tools', label: `需要调用以下工具：${toolReaxtNode['tools'].map(t => `${t.info.function.name}(${t.info.function.description})`).join(', ')}` },
         { sourceKey: 'answer', targetKey: 'review', label: '直接评审' },
-        { sourceKey: 'search', targetKey: 'answer', label: '可以回答' },
-        { sourceKey: 'search', targetKey: 'search', label: '继续搜索' },
+        { sourceKey: 'tools', targetKey: 'answer', label: '可以回答' },
+        // { sourceKey: 'tools', targetKey: 'tools', label: '需要继续调用工具' },
         { sourceKey: 'review', targetKey: 'review', label: '需要改进', condition: { prompt: 'overall 分数低于 7' } },
         { sourceKey: 'review', targetKey: 'end', label: '完成', condition: { prompt: 'overall 分数 >= 7' } },
     ],
@@ -196,7 +220,7 @@ const graph: GraphAgent = {
         return { isValid: true, errors: [], warnings: [] };
     },
     config: undefined as any
-};
+};;
 
 class GraphChatCore implements IChaxCore {
     onChat(llm: ChatDeepSeek, history: IMessage[], sendChunk: (chunk: IChaxStreamChunk) => void): void {
@@ -208,7 +232,7 @@ class GraphChatCore implements IChaxCore {
             context: [{ role: 'user', content: currentInput }] as any,
             sendChunk: (chunk) => {
                 process.stdout.write(chunk.content);
-                if(chunk.type !== 'chunk') {
+                if (chunk.type !== 'chunk') {
                     console.log('\n非 chunk 类型:', chunk.type + '\n');
                 }
                 sendChunk(chunk);
@@ -224,7 +248,7 @@ class GraphChatCore implements IChaxCore {
         sendChunk: (chunk: IChaxStreamChunk) => void
     ): Promise<void> {
         try {
-            const { result } = await graph.execute('nowadays', state);
+            const { result } = await toolsGraph.execute('nowadays', state);
             await result;
 
             sendChunk({

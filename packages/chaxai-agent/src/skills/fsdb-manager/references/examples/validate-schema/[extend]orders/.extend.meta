@@ -1,0 +1,2 @@
+{"field":"user_id","struct":"users","desc":"下单用户"}
+{"field":"product_id","struct":"products","desc":"购买产品"}

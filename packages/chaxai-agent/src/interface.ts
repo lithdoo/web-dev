@@ -31,8 +31,8 @@ export interface IAgxntTool {
 export interface IAgxntLLM {
     bindTools(tools: IAgxntTool[]): IAgxntLLM;
     setMessages(messages: Array<{ role: string; content: string }>): IAgxntLLM;
-    send(onChunk: (chunk: IChaxStreamChunk) => void): Promise<IAgxntLLMResponse>;
-    steam(onChunk: (chunk: IChaxStreamChunk) => void): Promise<{
+    send(onChunk?: (chunk: IChaxStreamChunk) => void): Promise<IAgxntLLMResponse>;
+    steam(onChunk?: (chunk: IChaxStreamChunk) => void): Promise<{
         content?: string
     }>;
 }

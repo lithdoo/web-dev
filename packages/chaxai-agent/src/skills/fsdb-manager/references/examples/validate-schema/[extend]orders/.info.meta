@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "Orders",
+  "description": "",
+  "properties": {
+    "order_id": {
+      "type": "string",
+      "description": "Order ID"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "User ID"
+    },
+    "product_id": {
+      "type": "string",
+      "description": "Product ID"
+    }
+  },
+  "required": [
+    "order_id",
+    "user_id",
+    "product_id"
+  ]
+}

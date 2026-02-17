@@ -1,8 +1,40 @@
-import { IAgxntTool } from '../src/interface';
+import { IAgxntTool } from "@/interface";
+
 
 export interface SearchConfig {
     baseUrl?: string;
     timeout?: number;
+}
+
+export function createSearchTool(config: SearchConfig = {}): IAgxntTool {
+    const baseUrl = config.baseUrl || 'http://localhost:8080';
+    const timeout = config.timeout || 30000;
+
+    return {
+        info: {
+            type: 'function',
+            function: {
+                name: 'search',
+                description: '通过 SearXNG 搜索引擎搜索互联网获取信息',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        query: {
+                            type: 'string',
+                            description: '搜索关键词',
+                        },
+                    },
+                    required: ['query'],
+                },
+            },
+        },
+        async call(args: { query: string }) {
+            console.log('[Search] 搜索关键词:', args.query);
+            const result = await searchSearxng(args.query, baseUrl, timeout);
+            console.log('[Search] 搜索结果长度:', result.length);
+            return result;
+        },
+    };
 }
 
 export interface SearxngResponse {
@@ -52,35 +84,4 @@ export async function searchSearxng(query: string, baseUrl: string = 'http://loc
         }
         return `搜索失败: ${error instanceof Error ? error.message : '未知错误'}`;
     }
-}
-
-export function createSearchTool(config: SearchConfig = {}): IAgxntTool {
-    const baseUrl = config.baseUrl || 'http://localhost:8000';
-    const timeout = config.timeout || 30000;
-
-    return {
-        info: {
-            type: 'function',
-            function: {
-                name: 'search',
-                description: '通过 SearXNG 搜索引擎搜索互联网获取信息',
-                parameters: {
-                    type: 'object',
-                    properties: {
-                        query: {
-                            type: 'string',
-                            description: '搜索关键词',
-                        },
-                    },
-                    required: ['query'],
-                },
-            },
-        },
-        async call(args: { query: string }) {
-            console.log('[Search] 搜索关键词:', args.query);
-            const result = await searchSearxng(args.query, baseUrl, timeout);
-            console.log('[Search] 搜索结果长度:', result.length);
-            return result;
-        },
-    };
 }

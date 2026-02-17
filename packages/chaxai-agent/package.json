@@ -39,6 +39,7 @@
     "@langchain/langgraph": "^1.0.7",
     "@langchain/openai": "^1.2.1",
     "duck-duck-scrape": "^2.2.7",
+    "gray-matter": "^4.0.3",
     "koa": "^2.15.0",
     "koa2-cors": "^2.0.6",
     "uuid": "^11.0.0"
