@@ -18,13 +18,20 @@ export function createExecTool(config: ExecConfig = {}): IAgxntTool {
             type: 'function',
             function: {
                 name: 'exec',
-                description: '执行 Shell 命令或脚本',
+                description: '执行 Shell 命令或脚本，windows 下默认使用 powershell.exe 执行;linux 下默认使用 /bin/bash 执行 , 执行脚本必须符合当前系统的脚本语法, 执行脚本必须符合当前系统的脚本语法, 执行脚本必须符合当前系统的脚本语法',
                 parameters: {
                     type: 'object',
                     properties: {
                         command: {
                             type: 'string',
                             description: '要执行的命令或脚本',
+                        },
+                        env: {
+                            type: 'object',
+                            additionalProperties: {
+                                type: 'string',
+                            },
+                            description: '环境变量',
                         },
                         timeout: {
                             type: 'number',
@@ -35,7 +42,11 @@ export function createExecTool(config: ExecConfig = {}): IAgxntTool {
                 },
             },
         },
-        async call(args: { command: string; timeout?: number }) {
+        async call(args: { 
+            command: string;
+            env?: Record<string, string>;
+            timeout?: number 
+        }) {
             console.log('[Exec] 执行命令:', args.command);
             console.log('[Exec] 工作目录:', workingDir);
             
@@ -50,6 +61,9 @@ export function createExecTool(config: ExecConfig = {}): IAgxntTool {
                         timeout: execTimeout,
                         maxBuffer: maxBuffer,
                         cwd: workingDir,
+                        env: {
+                            ... (args.env || {}),
+                        },
                         shell: process.platform === 'win32' ? 'powershell.exe' : '/bin/bash',
                     }, (error: any, stdout: string, stderr: string) => {
                         let output = '';

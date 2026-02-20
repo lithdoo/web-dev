@@ -27,7 +27,8 @@ export class NowadaysNode implements AgentNode {
         const now = new Date();
         const timeInfo = `当前时间: ${now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })} 
 当前系统信息: ${JSON.stringify(process.platform)} ${JSON.stringify(process.arch)} ${JSON.stringify(process.version)}
-当前对话语言: ${JSON.stringify(process.env.LANG?? 'zh-CN')}
+当前对话语言: ${JSON.stringify(process.env.LANG?? 'zh-CN')};
+回复对话**必须** 根据当前对话语言进行回复，在执行 Shell 命令或脚本时，**必须** 根据当前系统选择合适的脚本语法。
         `;
 
         state.context.push({

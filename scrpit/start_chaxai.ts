@@ -11,7 +11,7 @@ console.log(`🚀 启动 ChaxAI 服务，端口: ${PORT}`);
 console.log('='.repeat(50));
 
 const projectRoot = join(__dirname, '..');
-const servicePath = join(projectRoot, 'packages', 'chaxai-agent', 'example', 'tool-group-reaxt-demo');
+const servicePath = join(projectRoot, 'packages', 'chaxai-agent', 'example', 'tool-skill-demo');
 
 function startService() {
     return new Promise<void>((resolve, reject) => {

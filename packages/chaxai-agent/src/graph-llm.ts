@@ -51,14 +51,19 @@ export interface SystemMessageInAgent extends IMessage {
     role: 'system';
 }
 
+export interface AgentMessageExentd  {
+    title?:string 
+}
+
 /**
  * Agent 中所有消息的联合类型
  */
-export type AgentMessage =
-    | AIMessageInAgent
+export type AgentMessage = (AIMessageInAgent
     | UserMessageInAgent
     | SystemMessageInAgent
-    | ToolMessage;
+    | ToolMessage
+) & AgentMessageExentd;
+
 
 /**
  * Agent 执行状态

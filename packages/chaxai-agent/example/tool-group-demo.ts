@@ -5,7 +5,7 @@ import { GraphAgent, AgentExState, AgentExecutionContext } from '../src/graph-ag
 import { LLMGraphRouter } from '../src/runner/Router';
 import { DeepseekLLM } from '../src/deepseek';
 import { ExecutionContext, ExecutionResult, ExecutionStatus, NodeExecutionRecord } from '../src/graph-base';
-import { createReadDirectoryTool, createReadFileTool, createSearchTool } from '../src/tools';
+import { createExecTool, createReadDirectoryTool, createReadFileTool, createSearchTool } from '../src/tools';
 import { CoreChaxKoaMiddleWare, IChaxCore } from '../../chaxai-service/src/CoreBuilder';
 import { IChaxStreamChunk, IMessage } from '@chaxai-common';
 import { ChatDeepSeek } from '@langchain/deepseek';
@@ -46,11 +46,12 @@ const readDirTool = createReadDirectoryTool({
     includeDetails: true,
 })
 
+const execTool = createExecTool({})
 
 const toolGroupNode = NativeToolReActNode.create({
     name: 'tools',
     label: '工具组',
-    tools: [searchTool, readFileTool, readDirTool],
+    tools: [searchTool, readFileTool, readDirTool, execTool],
     callPrompt: (tools) => {
         const toolList = tools.map(t => 
             `- ${t.info.function.name}: ${t.info.function.description}`

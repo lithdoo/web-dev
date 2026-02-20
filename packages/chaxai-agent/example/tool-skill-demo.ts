@@ -5,17 +5,23 @@ import { GraphAgent, AgentExState, AgentExecutionContext } from '../src/graph-ag
 import { LLMGraphRouter } from '../src/runner/Router';
 import { DeepseekLLM } from '../src/deepseek';
 import { ExecutionContext, ExecutionResult, ExecutionStatus, NodeExecutionRecord } from '../src/graph-base';
-import { createReadDirectoryTool, createReadFileTool, createSearchTool } from '../src/tools';
+import { createExecTool, createReadDirectoryTool, createReadFileTool, createSearchTool } from '../src/tools';
 import { CoreChaxKoaMiddleWare, IChaxCore } from '../../chaxai-service/src/CoreBuilder';
 import { IChaxStreamChunk, IMessage } from '@chaxai-common';
 import { ChatDeepSeek } from '@langchain/deepseek';
-import { BaseLLMNode, DeepThinkNode, NativeToolGroupNode, NativeToolNode, NativeToolReActNode, NowadaysNode } from '@/nodes';
+import { AnthropicSkillNode, BaseLLMNode, DeepThinkNode, NativeToolReActNode, NowadaysNode } from '@/nodes';
+import path from 'path';
 
 
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const SEARXNG_BASE_URL = process.env.SEARXNG_BASE_URL || 'http://localhost:8080';
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-5069284b93a7481db08a15f65628906a';
+
+
+
+
+
 
 function createLLM(): ChatDeepSeek {
     return new ChatDeepSeek({
@@ -25,60 +31,52 @@ function createLLM(): ChatDeepSeek {
     });
 }
 
-const llm = new DeepseekLLM();
 
-const nowadaysNode = NowadaysNode.create({
-    name: 'nowadays',
-    label: '获取时间，环境，位置等信息',
-});
+(async () => {
 
-const searchTool = createSearchTool({
-    baseUrl: SEARXNG_BASE_URL,
-    timeout: 60000,
-});
+    const llm = new DeepseekLLM();
 
-const readFileTool = createReadFileTool({
-    encoding: 'utf-8',
-    maxFileSize: 1024 * 1024,
-})
+    const nowadaysNode = NowadaysNode.create({
+        name: 'nowadays',
+        label: '获取时间，环境，位置等信息',
+    });
 
-const readDirTool = createReadDirectoryTool({
-    includeDetails: true,
-})
+    const searchTool = createSearchTool({
+        baseUrl: SEARXNG_BASE_URL,
+        timeout: 60000,
+    });
+
+    const readFileTool = createReadFileTool({
+        encoding: 'utf-8',
+        maxFileSize: 1024 * 1024,
+    })
+
+    const readDirTool = createReadDirectoryTool({
+        includeDetails: true,
+    })
+
+    const execTool = createExecTool({})
 
 
-const toolGroupNode = NativeToolGroupNode.create({
-    name: 'tools',
-    label: '工具组',
-    tools: [searchTool, readFileTool, readDirTool],
-    systemPrompt: (tools) => {
-        const toolList = tools.map(t => 
-            `- ${t.info.function.name}: ${t.info.function.description}`
-        ).join('\n');
-        return `你是一个工具助手，请根据用户需求选择合适的工具。
+    const toolReaxtNode = NativeToolReActNode.create({
+        name: 'tools',
+        label: '工具组',
+        tools: [searchTool, readFileTool, readDirTool,execTool],
+        llmCall: llm,
+    });
 
-## 可用工具
-${toolList}
-
-## 规则
-1. 仔细阅读用户需求，选择最合适的工具
-2. 如果不需要调用工具，返回空字符串
-3. 确保参数正确`;
-    },
-    llm,
-});
-
-const thinkNode = DeepThinkNode.create({
-    name: 'think',
-    label: '深度思考',
-    systemPrompt: `## 角色
-你是深度思考助手，负责对问题进行深入、全面、严谨的分析。
+    const thinkNode = DeepThinkNode.create({
+        name: 'think',
+        label: '深度思考',
+        systemPrompt: `## 角色
+你是深度思考助手，负责对问题进行深入、全面、严谨的分析。拆解用户问题，识别问题的核心需求和相关因素。
+并整理回答的步骤，确保回答的逻辑清晰、结构合理。
 
 ## 执行流程
-1. nowadays: 获取当前时间信息
-2. think: 对用户问题进行深度思考分析
-3. answer: 根据思考结果生成回答
-4. search: (可选) 如需额外信息则搜索
+1. nowadays: 获取当前时间信息 （跳转 think 节点）
+2. think: 对用户问题进行深度思考分析（当前节点，可跳转到 tools 节点或者 answer 节点）
+3. tools: 调用工具（包含以下工具,${toolReaxtNode['tools'].map(t => `${t.info.function.name}:${t.info.function.description})`).join(',')}）(可反复调用，调用完成后跳转 answer 节点)
+3. answer: 根据思考结果生成回答（跳转 review 节点）
 5. review: 评估回答质量，必要时改进
 
 ## 任务要求
@@ -88,18 +86,16 @@ const thinkNode = DeepThinkNode.create({
 4. 在给出结论前，考虑可能的反例和边界情况
 5. 保持客观中立，避免先入为主的判断
 6. 特别关注问题中的时间信息（如"2026年"），结合当前时间进行判断
-7. 如果需要搜索信息，之后会存在搜索的节点，需要分析整理搜索的关键字，确保搜索的内容与问题相关
-
 ## 输出格式
 请直接输出你的思考内容，不要包含任何代码块标记（如 \`\`\`thinking 或 \`\`\`）。`,
-    llm,
-});
+        llm,
+    });
 
 
-const answerNode = BaseLLMNode.create({
-    name: 'answer',
-    label: '生成回答',
-    systemPrompt: `## 角色
+    const answerNode = BaseLLMNode.create({
+        name: 'answer',
+        label: '生成回答',
+        systemPrompt: `## 角色
 你是一个专业、友好的 AI 助手。
 
 ## 任务
@@ -109,13 +105,13 @@ const answerNode = BaseLLMNode.create({
 1. 直接回答用户问题，不要包含任何思考过程
 2. 回答要简洁明了，结构清晰
 3. 如果需要，可以分点说明`,
-    llm,
-});
+        llm,
+    });
 
-const reviewNode = BaseLLMNode.create({
-    name: 'review',
-    label: '评价回答',
-    systemPrompt: `## 角色
+    const reviewNode = BaseLLMNode.create({
+        name: 'review',
+        label: '评价回答',
+        systemPrompt: `## 角色
 你是回答质量评审专家。
 
 ## 任务
@@ -137,172 +133,184 @@ const reviewNode = BaseLLMNode.create({
     "feedback": "简短的建设性意见"
 }
 \`\`\``,
-    llm,
-});
+        llm,
+    });
 
-const toolsGraph : GraphAgent = {
-    entries: ['nowadays'],
-    endPoints: ['review'],
-    nodes: [
-        { node: nowadaysNode, keyname: 'nowadays' },
-        { node: thinkNode, keyname: 'think' },
-        { node: answerNode, keyname: 'answer' },
-        { node: toolGroupNode, keyname: 'tools' },
-        { node: reviewNode, keyname: 'review' },
-    ],
-    edges: [
-        { sourceKey: 'nowadays', targetKey: 'think', label: '获取时间' },
-        { sourceKey: 'think', targetKey: 'answer', label: '直接回答' },
-        { sourceKey: 'think', targetKey: 'tools', label: `需要调用以下工具：${toolGroupNode['tools'].map(t => `${t.info.function.name}(${t.info.function.description})`).join(', ')}` },
-        { sourceKey: 'answer', targetKey: 'review', label: '直接评审' },
-        { sourceKey: 'tools', targetKey: 'answer', label: '可以回答' },
-        { sourceKey: 'tools', targetKey: 'tools', label: '需要继续调用工具' },
-        { sourceKey: 'review', targetKey: 'review', label: '需要改进', condition: { prompt: 'overall 分数低于 7' } },
-        { sourceKey: 'review', targetKey: 'end', label: '完成', condition: { prompt: 'overall 分数 >= 7' } },
-    ],
-    execute(entry, initialState) {
-        const executionPath: NodeExecutionRecord[] = [];
-        const startTime = new Date();
-        const context: AgentExecutionContext = {
-            executionId: `exec_${Date.now()}`,
-            startTime,
-            metadata: {},
-            abort: () => { },
-            pause: async () => { },
-            resume: async () => { },
-            status: () => ExecutionStatus.RUNNING,
-            currentNodeKey: () => '',
-            iterationCount: () => 0,
-            getMessages: () => [],
-            addMessage: () => { },
-            addHistory: () => { },
-            getToolCalls: () => [],
-            clearToolCalls: () => { },
-        };
+    const skillNode = await AnthropicSkillNode.create({
+        name: 'skill',
+        label: '技能组',
+        dirPath: path.resolve(__dirname, '../skills'),
+    });
 
-        const run = async () => {
-            const router = new LLMGraphRouter(this);
-            let currentNodeKey = entry;
-            let iterations = 0;
-            const maxIterations = 10;
-
-            while (iterations < maxIterations) {
-                iterations++;
-                const node = this.nodes.find(n => n.keyname === currentNodeKey);
-                if (!node) {
-                    throw new Error(`Node not found: ${currentNodeKey}`);
-                }
-
-                await node.node.execute(initialState);
-
-                if (currentNodeKey === 'review') {
-                    break;
-                }
-
-                const nextKey = await router.next(currentNodeKey, initialState);
-                if (nextKey === 'END' || nextKey === 'end') {
-                    break;
-                }
-                currentNodeKey = nextKey;
-            }
-
-            const result: ExecutionResult<AgentExState> = {
-                finalState: initialState,
-                executionPath,
+    const toolsGraph: GraphAgent = {
+        entries: ['nowadays'],
+        endPoints: ['review'],
+        nodes: [
+            { node: nowadaysNode, keyname: 'nowadays' },
+            { node: thinkNode, keyname: 'think' },
+            { node: answerNode, keyname: 'answer' },
+            { node: toolReaxtNode, keyname: 'tools' },
+            { node: reviewNode, keyname: 'review' },
+            { node: skillNode, keyname: 'skill' },
+        ],
+        edges: [
+            { sourceKey: 'nowadays', targetKey: 'skill', label: '获取技能' },
+            { sourceKey: 'skill', targetKey: 'think', label: '深度思考' },
+            { sourceKey: 'think', targetKey: 'answer', label: '直接回答' },
+            { sourceKey: 'think', targetKey: 'tools', label: `需要调用以下工具：${toolReaxtNode['tools'].map(t => `${t.info.function.name}(${t.info.function.description})`).join(', ')}` },
+            
+            { sourceKey: 'answer', targetKey: 'review', label: '直接评审' },
+            { sourceKey: 'tools', targetKey: 'think', label: '需要继续细化' },
+            { sourceKey: 'tools', targetKey: 'answer', label: '完成工具调用，生成回答' },
+            // { sourceKey: 'tools', targetKey: 'tools', label: '需要继续调用工具' },
+            // { sourceKey: 'review', targetKey: 'answer', label: '需要改进', condition: { prompt: 'overall 分数低于 7' } },
+            { sourceKey: 'review', targetKey: 'end', label: '完成', condition: { prompt: 'overall 分数 >= 7' } },
+        ],
+        execute(entry, initialState) {
+            const executionPath: NodeExecutionRecord[] = [];
+            const startTime = new Date();
+            const context: AgentExecutionContext = {
+                executionId: `exec_${Date.now()}`,
+                startTime,
+                metadata: {},
+                abort: () => { },
+                pause: async () => { },
+                resume: async () => { },
+                status: () => ExecutionStatus.RUNNING,
+                currentNodeKey: () => '',
+                iterationCount: () => 0,
+                getMessages: () => [],
+                addMessage: () => { },
+                addHistory: () => { },
+                getToolCalls: () => [],
+                clearToolCalls: () => { },
             };
 
-            return result;
-        };
+            const run = async () => {
+                const router = new LLMGraphRouter(this);
+                let currentNodeKey = entry;
+                let iterations = 0;
+                const maxIterations = 10;
 
-        return { result: run(), context: context as unknown as ExecutionContext };
-    },
-    cancel() { },
-    validate() {
-        return { isValid: true, errors: [], warnings: [] };
-    },
-    config: undefined as any
-};;
+                while (iterations < maxIterations) {
+                    iterations++;
+                    const node = this.nodes.find(n => n.keyname === currentNodeKey);
+                    if (!node) {
+                        throw new Error(`Node not found: ${currentNodeKey}`);
+                    }
 
-class GraphChatCore implements IChaxCore {
-    onChat(llm: ChatDeepSeek, history: IMessage[], sendChunk: (chunk: IChaxStreamChunk) => void): void {
-        const lastMessage = history[history.length - 1];
-        const currentInput = lastMessage?.role === 'user' ? lastMessage.content : '';
+                    await node.node.execute(initialState);
 
-        const state: AgentExState = {
-            history: history.slice(0, -1) as any || [],
-            context: [{ role: 'user', content: currentInput }] as any,
-            sendChunk: (chunk) => {
-                process.stdout.write(chunk.content);
-                if (chunk.type !== 'chunk') {
-                    console.log('\n非 chunk 类型:', chunk.type + '\n');
+                    if (currentNodeKey === 'review') {
+                        break;
+                    }
+
+                    const nextKey = await router.next(currentNodeKey, initialState);
+                    if (nextKey === 'END' || nextKey === 'end') {
+                        break;
+                    }
+                    currentNodeKey = nextKey;
                 }
-                sendChunk(chunk);
-                return Promise.resolve();
-            },
-        };
 
-        this.handleGraphResponse(state, sendChunk);
-    }
+                const result: ExecutionResult<AgentExState> = {
+                    finalState: initialState,
+                    executionPath,
+                };
 
-    private async handleGraphResponse(
-        state: AgentExState,
-        sendChunk: (chunk: IChaxStreamChunk) => void
-    ): Promise<void> {
-        try {
-            const { result } = await toolsGraph.execute('nowadays', state);
-            await result;
+                return result;
+            };
 
-            sendChunk({
-                type: 'done',
-                content: ''
-            });
-        } catch (error) {
-            console.error('Graph 执行错误:', error);
-            sendChunk({
-                type: 'error',
-                content: error instanceof Error ? error.message : '未知错误'
-            });
+            return { result: run(), context: context as unknown as ExecutionContext };
+        },
+        cancel() { },
+        validate() {
+            return { isValid: true, errors: [], warnings: [] };
+        },
+        config: undefined as any
+    };;
+
+    class GraphChatCore implements IChaxCore {
+        onChat(llm: ChatDeepSeek, history: IMessage[], sendChunk: (chunk: IChaxStreamChunk) => void): void {
+            const lastMessage = history[history.length - 1];
+            const currentInput = lastMessage?.role === 'user' ? lastMessage.content : '';
+
+            const state: AgentExState = {
+                history: history.slice(0, -1) as any || [],
+                context: [{ role: 'user', content: currentInput }] as any,
+                sendChunk: (chunk) => {
+                    process.stdout.write(chunk.content);
+                    if (chunk.type !== 'chunk') {
+                        console.log('\n非 chunk 类型:', chunk.type + '\n');
+                    }
+                    sendChunk(chunk);
+                    return Promise.resolve();
+                },
+            };
+
+            this.handleGraphResponse(state, sendChunk);
+        }
+
+        private async handleGraphResponse(
+            state: AgentExState,
+            sendChunk: (chunk: IChaxStreamChunk) => void
+        ): Promise<void> {
+            try {
+                const { result } = await toolsGraph.execute('nowadays', state);
+                await result;
+
+                sendChunk({
+                    type: 'done',
+                    content: ''
+                });
+            } catch (error) {
+                console.error('Graph 执行错误:', error);
+                sendChunk({
+                    type: 'error',
+                    content: error instanceof Error ? error.message : '未知错误'
+                });
+            }
         }
     }
-}
 
-async function startServer() {
-    console.log('=== 启动 GraphAgent Service ===');
-    console.log(`SearXNG: ${SEARXNG_BASE_URL}`);
-
-    const app = new Koa();
-    app.use(cors());
-    app.use(bodyParser());
-
-    const chatCore = new GraphChatCore();
-
-    const middleware = new CoreChaxKoaMiddleWare(
-        chatCore,
-        createLLM
-    );
-
-    app.use(middleware.createMiddleware());
-
-    app.listen(PORT, () => {
-        console.log('');
-        console.log('='.repeat(60));
-        console.log(`GraphAgent Service 已启动`);
-        console.log('='.repeat(60));
-        console.log(`监听端口: ${PORT}`);
+    async function startServer() {
+        console.log('=== 启动 GraphAgent Service ===');
         console.log(`SearXNG: ${SEARXNG_BASE_URL}`);
-        console.log('');
-        console.log('API 端点:');
-        console.log('- GET  /health              - 健康检查');
-        console.log('- POST /ai/chat             - 发送消息');
-        console.log('- GET  /ai/record/list      - 获取会话列表');
-        console.log('- GET  /ai/message/list/:id - 获取会话消息');
-        console.log('');
-        console.log('请求示例:');
-        console.log(`curl -X POST http://localhost:${PORT}/ai/chat \\`);
-        console.log(`  -H "Content-Type: application/json" \\`);
-        console.log(`  -d '{"message": "你的问题", "recordId": "会话ID"}'`);
-        console.log('='.repeat(60));
-    });
-}
 
-startServer().catch(console.error);
+        const app = new Koa();
+        app.use(cors());
+        app.use(bodyParser());
+
+        const chatCore = new GraphChatCore();
+
+        const middleware = new CoreChaxKoaMiddleWare(
+            chatCore,
+            createLLM
+        );
+
+        app.use(middleware.createMiddleware());
+
+        app.listen(PORT, () => {
+            console.log('');
+            console.log('='.repeat(60));
+            console.log(`GraphAgent Service 已启动`);
+            console.log('='.repeat(60));
+            console.log(`监听端口: ${PORT}`);
+            console.log(`SearXNG: ${SEARXNG_BASE_URL}`);
+            console.log('');
+            console.log('API 端点:');
+            console.log('- GET  /health              - 健康检查');
+            console.log('- POST /ai/chat             - 发送消息');
+            console.log('- GET  /ai/record/list      - 获取会话列表');
+            console.log('- GET  /ai/message/list/:id - 获取会话消息');
+            console.log('');
+            console.log('请求示例:');
+            console.log(`curl -X POST http://localhost:${PORT}/ai/chat \\`);
+            console.log(`  -H "Content-Type: application/json" \\`);
+            console.log(`  -d '{"message": "你的问题", "recordId": "会话ID"}'`);
+            console.log('='.repeat(60));
+        });
+    }
+
+    startServer().catch(console.error);
+})()
+

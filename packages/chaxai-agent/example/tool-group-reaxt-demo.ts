@@ -9,7 +9,7 @@ import { createReadDirectoryTool, createReadFileTool, createSearchTool } from '.
 import { CoreChaxKoaMiddleWare, IChaxCore } from '../../chaxai-service/src/CoreBuilder';
 import { IChaxStreamChunk, IMessage } from '@chaxai-common';
 import { ChatDeepSeek } from '@langchain/deepseek';
-import { BaseLLMNode, DeepThinkNode, NativeToolGroupNode, NativeToolNode, NativeToolReActNode, NowadaysNode } from '@/nodes';
+import { BaseLLMNode, DeepThinkNode, NativeToolReActNode, NowadaysNode } from '@/nodes';
 
 
 
@@ -51,20 +51,6 @@ const toolReaxtNode = NativeToolReActNode.create({
     name: 'tools',
     label: '工具组',
     tools: [searchTool, readFileTool, readDirTool],
-    observePrompt: (tools) => {
-        const toolList = tools.map(t => 
-            `- ${t.info.function.name}: ${t.info.function.description}`
-        ).join('\n');
-        return `你是一个工具助手，请根据用户需求选择合适的工具。
-
-## 可用工具
-${toolList}
-
-## 规则
-1. 仔细阅读用户需求，选择最合适的工具
-2. 如果不需要调用工具，返回空字符串
-3. 确保参数正确`;
-    },
     llmCall: llm,
 });
 
