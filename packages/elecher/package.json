@@ -1,0 +1,24 @@
+{
+  "name": "elecher",
+  "version": "1.0.1",
+  "main": "index.js",
+  "bin": {
+    "elecher-start": "./scripts/elecher-start.js",
+    "elecher": "./scripts/elecher-start.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "node scripts/download-electron.js",
+    "start": "node scripts/elecher-start.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "Electron binary downloader for local platform",
+  "dependencies": {
+    "@electron/get": "^2.0.2",
+    "adm-zip": "^0.5.16",
+    "jayson": "^4.3.0",
+    "toml": "^3.0.0",
+    "ws": "^8.19.0"
+  }
+}

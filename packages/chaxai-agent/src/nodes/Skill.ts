@@ -4,7 +4,6 @@ import { AgentNode, AgentExState } from "../graph-agant";
 import { IAgxntLLM, IAgxntTool } from "../interface";
 import matter from "gray-matter";
 import { collectFiles, pathExists } from "../utils/skill-files";
-import { NativeToolReActNode } from "./NativeTool";
 import { CodeChunkSender } from "@/utils/chunk";
 
 export interface SkillNodeConfig {
@@ -187,7 +186,7 @@ export class AnthropicSkillNode implements AgentNode {
             content: prompt,
         })
         new CodeChunkSender(state.sendChunk)
-            .start('[skill_info]')
+            .start('[json|技能信息]')
             .content(skillsInfo)
             .finish();
 

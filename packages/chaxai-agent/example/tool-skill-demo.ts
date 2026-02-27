@@ -5,7 +5,7 @@ import { GraphAgent, AgentExState, AgentExecutionContext } from '../src/graph-ag
 import { LLMGraphRouter } from '../src/runner/Router';
 import { DeepseekLLM } from '../src/deepseek';
 import { ExecutionContext, ExecutionResult, ExecutionStatus, NodeExecutionRecord } from '../src/graph-base';
-import { createExecTool, createReadDirectoryTool, createReadFileTool, createSearchTool } from '../src/tools';
+import { createExecTool, createReadDirectoryTool, createReadFileTool, createSearchTool, createReadStatTool, createCreateDirectoryTool, createRemoveDirectoryTool, createWriteFileTool, createDeleteFileTool } from '../src/tools';
 import { CoreChaxKoaMiddleWare, IChaxCore } from '../../chaxai-service/src/CoreBuilder';
 import { IChaxStreamChunk, IMessage } from '@chaxai-common';
 import { ChatDeepSeek } from '@langchain/deepseek';
@@ -20,16 +20,21 @@ const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-5069284b93a7481db08
 
 
 
-
-
-
-function createLLM(): ChatDeepSeek {
-    return new ChatDeepSeek({
-        model: 'deepseek-chat',
-        apiKey: DEEPSEEK_API_KEY,
-        temperature: 0.7,
-    });
+const write = {
+    roots: ['D:\\Coding\\fsdb-novel-model']
 }
+
+const read = {
+    roots: ['C:\\Users\\lithd\\Documents\\trae_projects',...write.roots]
+};
+
+// function createLLM(): ChatDeepSeek {
+//     return new ChatDeepSeek({
+//         model: 'deepseek-chat',
+//         apiKey: DEEPSEEK_API_KEY,
+//         temperature: 0.7,
+//     });
+// }
 
 
 (async () => {
@@ -49,10 +54,32 @@ function createLLM(): ChatDeepSeek {
     const readFileTool = createReadFileTool({
         encoding: 'utf-8',
         maxFileSize: 1024 * 1024,
+        ...read,
     })
 
     const readDirTool = createReadDirectoryTool({
         includeDetails: true,
+        ...read,
+    })
+
+    const readStatTool = createReadStatTool({
+        ...read
+    })
+
+    const createDirTool = createCreateDirectoryTool({
+        ...write
+    })
+
+    const removeDirTool = createRemoveDirectoryTool({
+        ...write
+    })
+
+    const writeFileTool = createWriteFileTool({
+        ...write
+    })
+
+    const deleteFileTool = createDeleteFileTool({
+        ...write
     })
 
     const execTool = createExecTool({})
@@ -61,7 +88,7 @@ function createLLM(): ChatDeepSeek {
     const toolReaxtNode = NativeToolReActNode.create({
         name: 'tools',
         label: '工具组',
-        tools: [searchTool, readFileTool, readDirTool,execTool],
+        tools: [searchTool, readFileTool, readDirTool, readStatTool, createDirTool, removeDirTool, writeFileTool, deleteFileTool, execTool],
         llmCall: llm,
     });
 
@@ -230,7 +257,7 @@ function createLLM(): ChatDeepSeek {
     };;
 
     class GraphChatCore implements IChaxCore {
-        onChat(llm: ChatDeepSeek, history: IMessage[], sendChunk: (chunk: IChaxStreamChunk) => void): void {
+        onChat(history: IMessage[], sendChunk: (chunk: IChaxStreamChunk) => void): void {
             const lastMessage = history[history.length - 1];
             const currentInput = lastMessage?.role === 'user' ? lastMessage.content : '';
 
@@ -284,7 +311,7 @@ function createLLM(): ChatDeepSeek {
 
         const middleware = new CoreChaxKoaMiddleWare(
             chatCore,
-            createLLM
+            // createLLM
         );
 
         app.use(middleware.createMiddleware());

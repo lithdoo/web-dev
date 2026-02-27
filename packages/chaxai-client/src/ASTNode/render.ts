@@ -276,7 +276,6 @@ export class RootViewNode<Ctx> {
     }
 }
 
-
 export class CacheRootViewNode<Ctx> extends RootViewNode<Ctx> {
 
     constructor(

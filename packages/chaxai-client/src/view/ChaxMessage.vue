@@ -10,10 +10,7 @@
       <span class="chax-message__avatar-icon">{{ type === 'user' ? '我' : 'AI' }}</span>
     </div>
     <div class="chax-message__content">
-      <div
-        class="chax-message__content-inner"
-        v-html="renderedContent"
-      ></div>
+      <ChaxContent :msg="props.option" />
       <div v-if="status === 'streaming'" class="chax-message__typing">
         <span class="chax-message__typing-dot"></span>
         <span class="chax-message__typing-dot"></span>
@@ -29,6 +26,7 @@
 <script setup lang="ts">
 import { computed, watch, onMounted } from 'vue'
 import type { IRecChaxMessage } from './interface'
+import ChaxContent from './ChaxContent.vue'
 
 const props = defineProps<{option:IRecChaxMessage}>()
 

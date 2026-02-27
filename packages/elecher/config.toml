@@ -1,0 +1,3 @@
+appName = "my-electron-app"
+port = 9333
+cmd = "./subprocess.js"

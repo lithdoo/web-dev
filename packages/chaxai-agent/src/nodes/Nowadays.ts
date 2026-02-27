@@ -37,7 +37,7 @@ export class NowadaysNode implements AgentNode {
         });
 
         new CodeChunkSender(state.sendChunk)
-            .start('[nowadays]')
+            .start('[pre|环境信息]')
             .content(timeInfo.trim())
             .finish();
 

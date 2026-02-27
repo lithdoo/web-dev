@@ -28,3 +28,4 @@ packages/chaxai-service/.chaxai_data/
 /packages/chaxai-service/.agent_memory
 /.chaxai_data
 /packages/chaxai-agent/.chaxai_data
+/packages/elecher/electron_bin

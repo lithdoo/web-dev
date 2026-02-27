@@ -60,13 +60,17 @@ function parseSSEChunk(chunk: string): StreamChunk | null {
 async function* callDeepseekStream(
     messages: Message[],
     tools?: IAgxntTool[],
-    tool_choice: "auto" | "none" | "required" = "auto"
+    options?: {
+        temperature?: number;
+        model?: string;
+        tool_choice?: "auto" | "none" | "required";
+    }
 ): AsyncGenerator<StreamChunk> {
     const payload: any = {
-        model: MODEL,
+        model: options?.model || MODEL,
         messages,
-        temperature: 0.7,
-        max_tokens: 1024,
+        temperature: options?.temperature || 0.7,
+        // max_tokens: options?.max_tokens || 1024,
         stream: true,
     };
 
@@ -75,7 +79,7 @@ async function* callDeepseekStream(
             type: t.info.type,
             function: t.info.function
         }));
-        payload.tool_choice = tool_choice;
+        payload.tool_choice = options?.tool_choice || "auto";
     }
 
     const response = await fetch(BASE_URL, {
@@ -125,6 +129,14 @@ export class DeepseekLLM implements IAgxntLLM {
     private toolHandlers: Map<string, ToolHandler> = new Map();
     private messages: Message[] = [];
 
+    constructor(
+        private model: string | null= null,
+        private temperature: number | null = null,
+        private toolChoice: "auto" | "none" | "required" | null  = null
+    ){
+
+    }
+
     bindTools(tools: IAgxntTool[]): DeepseekLLM {
         this.tools = tools;
         return this;
@@ -142,6 +154,18 @@ export class DeepseekLLM implements IAgxntLLM {
         this.toolHandlers.set(name, handler);
     }
 
+    private buildOptions(): {
+        temperature?: number;
+        model?: string;
+        tool_choice?: "auto" | "none" | "required";
+    } {
+        return {
+            temperature: this.temperature || undefined,
+            model: this.model || undefined,
+            tool_choice: this.toolChoice || undefined,
+        };
+    } 
+
     async send(onChunk?: (chunk: IChaxStreamChunk) => void): Promise<IAgxntLLMResponse> {
         if (this.messages.length === 0) {
             throw new Error("请先调用 setMessages 设置消息");
@@ -151,7 +175,7 @@ export class DeepseekLLM implements IAgxntLLM {
         let toolCallsMap = new Map<number, any>();
         let hasToolCalls = false;
 
-        for await (const chunk of callDeepseekStream(this.messages, this.tools)) {
+        for await (const chunk of callDeepseekStream(this.messages, this.tools ,this.buildOptions())) {
             if (chunk.done) {
                 break;
             }
@@ -202,7 +226,7 @@ export class DeepseekLLM implements IAgxntLLM {
             let toolCallsMap = new Map<number, any>();
             let hasToolCalls = false;
 
-            for await (const chunk of callDeepseekStream(this.messages, this.tools)) {
+            for await (const chunk of callDeepseekStream(this.messages, this.tools ,this.buildOptions())) {
                 if (chunk.done) {
                     break;
                 }

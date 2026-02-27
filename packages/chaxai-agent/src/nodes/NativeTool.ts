@@ -27,6 +27,12 @@ export interface NativeToolGroupNodeConfig {
 
 export class NativeToolNode implements AgentNode {
 
+    static toolLLM () {
+        return new DeepseekLLM(
+            null, 0, "auto"
+        );
+    }
+
     static create(config: NativeToolNodeConfig): NativeToolNode {
         return new NativeToolNode(config);
     }
@@ -160,7 +166,7 @@ export class NativeToolGroupNode implements AgentNode {
 
         const response = await this.llm.send();
         new CodeChunkSender(state.sendChunk)
-            .start('[tool-group-execute-content]')
+            .start('[pre|工具调用请求]')
             .content('content:\n')
             .content(response.content || '无调用内容')
             .content('\n')
@@ -186,7 +192,7 @@ export class NativeToolGroupNode implements AgentNode {
                 const content = `工具 "${toolName}" 未找到。可用工具: ${this.tools.map(t => t.info.function.name).join(', ')}`
                 state.context.push({ role: 'assistant', content, title: '工具调用错误' });
                 new CodeChunkSender(state.sendChunk)
-                    .start(`[tool-group-call-error]${toolName}`)
+                    .start(`[pre|工具调用错误]${toolName}`)
                     .content(content)
                     .finish();
                 return state;
@@ -213,7 +219,7 @@ export class NativeToolGroupNode implements AgentNode {
             });
 
             new CodeChunkSender(state.sendChunk)
-                .start(`[tool-group-call-success]${toolName}`)
+                .start(`[json|工具调用结果]${toolName}`)
                 .content(toolResult)
                 .finish();
 

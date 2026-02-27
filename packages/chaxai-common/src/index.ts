@@ -55,6 +55,8 @@ export interface IChaxConversation {
     updateTimestamp: number;
     /** 会话标题 */
     title: string;
+    /** 会话是否已删除 */
+    isDeleted?: boolean;
 }
 
 /**

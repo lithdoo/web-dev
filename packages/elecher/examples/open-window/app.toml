@@ -1,0 +1,3 @@
+appName = "open-window"
+port = 9333
+cmd = "bun ./app.ts"

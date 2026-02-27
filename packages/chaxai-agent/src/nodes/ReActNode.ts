@@ -53,7 +53,7 @@ export class NativeToolReActNode implements AgentNode {
             name: `${config.name}_group`,
             tools: config.tools,
             systemPrompt: callPrompt,
-            llm: config.llmCall,
+            llm: new DeepseekLLM(null, 0, "required"),
         });
         this.thinkLLM = config.llmObserve ?? new DeepseekLLM();
     }
@@ -75,8 +75,6 @@ export class NativeToolReActNode implements AgentNode {
 
         return state;
     }
-
-
 
     private async think(state: AgentExState): Promise<boolean> {
         const messages = buildStateMessage(
@@ -114,7 +112,7 @@ ${JSON.stringify(this.tools.map(t => t.info), null, 2)}
                 title: '深度思考内容'
             });
             new CodeChunkSender(state.sendChunk)
-                .start('[tool-react-assessment]')
+                .start('[md|深度思考内容]')
                 .content(response.content?.trim() || '无思考内容')
                 .finish();
         } else {
@@ -122,7 +120,7 @@ ${JSON.stringify(this.tools.map(t => t.info), null, 2)}
                 type: 'chunk', content: `\n[工具调用评估] 工具调用完毕。\n`
             });
             new CodeChunkSender(state.sendChunk)
-                .start('[tool-react-assessment]')
+                .start('[md|深度思考内容]')
                 .content('工具调用完毕。')
                 .finish();
         }

@@ -43,7 +43,7 @@ export class DeepThinkNode extends BaseLLMNode {
         const sender = new CodeChunkSender(state.sendChunk);
         this.llm.setMessages(messages);
 
-        sender.start('[thinking]');
+        sender.start('[md|预先思考]');
 
         const response = await this.llm.send(sender.sendChunk);
 

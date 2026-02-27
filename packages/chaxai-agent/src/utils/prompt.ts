@@ -14,6 +14,7 @@ ${tools.map(t =>
 1. 仔细阅读用户需求，选择最合适的工具
 2. 如果不需要调用工具，返回空字符串
 3. 确保参数正确
+4. 如果最近的思考内容中包含了工具调用，则严格按照思考中的工具调用进行返回，不要擅自修改内容（比如最近思考内容是创建目录，则不要擅自改为读取目录），并且需要验证工具调用的参数是否正确。
             `.trim()
 
 export const buildToolPrompt = (
@@ -32,7 +33,6 @@ export const buildToolPrompt = (
 
     throw new Error('NativeToolReActNode requires a prompt function or string');
 }
-
 
 export const buildStateMessage = (
     state: AgentExState,

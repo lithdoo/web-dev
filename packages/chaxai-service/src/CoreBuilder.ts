@@ -1,13 +1,14 @@
 import { IMessage, IChaxConversation, IChaxConversationManager, IChaxHistroyService, IChaxMessageInfo, IChaxStreamChunk } from "@chaxai-common";
-import { ChatDeepSeek } from "@langchain/deepseek";
+// import { ChatDeepSeek } from "@langchain/deepseek";
 import { v4 as uuidv4 } from 'uuid';
 import { ChaxKoaMiddleWare } from "./KoaMiddleWare";
-import { ChaxFileService } from "./FileService";
+// import { ChaxFileService } from "./FileService";
+import { ChaxFSDBService } from "./FSDBService";
 
 
 export interface IChaxCore {
     onChat(
-        llm: ChatDeepSeek,
+        // llm: ChatDeepSeek,
         history: IMessage[],
         sendChunk: (chunk: IChaxStreamChunk) => void
     ): void
@@ -19,14 +20,14 @@ export class CoreConversationManager implements IChaxConversationManager {
     constructor(
         private core: IChaxCore,
         private history: IChaxHistroyService,
-        private llm = () => {
-            const DEEPSEEK_API_KEY = 'sk-5069284b93a7481db08a15f65628906a';
-            return new ChatDeepSeek({
-                model: 'deepseek-chat',
-                apiKey: DEEPSEEK_API_KEY,
-                temperature: 0.7,
-            });
-        }
+        // private llm = () => {
+        //     const DEEPSEEK_API_KEY = 'sk-5069284b93a7481db08a15f65628906a';
+        //     return new ChatDeepSeek({
+        //         model: 'deepseek-chat',
+        //         apiKey: DEEPSEEK_API_KEY,
+        //         temperature: 0.7,
+        //     });
+        // }
     ) {}
 
 
@@ -78,7 +79,7 @@ export class CoreConversationManager implements IChaxConversationManager {
                 })
         );
         this.core.onChat(
-            this.llm(),
+            // this.llm(),
             conversationMessages,
             onChunk
         );
@@ -89,11 +90,11 @@ export class CoreConversationManager implements IChaxConversationManager {
 export class CoreChaxKoaMiddleWare extends ChaxKoaMiddleWare {
     constructor(
         core: IChaxCore,
-        llm?: ()=> ChatDeepSeek
+        // llm?: ()=> ChatDeepSeek
     ) {
         super(
-            ChaxFileService.build({
-                build: (history: IChaxHistroyService) => new CoreConversationManager(core, history, llm),
+            ChaxFSDBService.build({
+                build: (history: IChaxHistroyService) => new CoreConversationManager(core, history),
             })
         );
     }
